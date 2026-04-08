@@ -1,12 +1,9 @@
 """
 PDF report generators for EEG QC and EEG Analysis reports.
 
-Two report types:
-  - QC Report: per-channel signal quality metrics + PSD plots.
-  - Analysis Report: spectral analysis, band powers, alpha reactivity.
-
-Style matches Neuroelectrics branded documents (dark teal header bar,
-teal section headings, clean tables with generous whitespace).
+Style matches Neuroelectrics branded documents: dark header bar,
+black titles, teal subtitles, justified body text, clean tables
+with teal headers and generous whitespace.
 
 Authors: G. Ruffini / Neuroelectrics, 2026
 """
@@ -33,194 +30,180 @@ from reportlab.lib.units import inch, mm
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, PageBreak,
-    KeepTogether, HRFlowable,
+    HRFlowable,
 )
 
 from ne_eeg_server.analysis.analyzer import EasyAnalyzer
 from ne_eeg_server.analysis.metrics_defaults import DEFAULT_EVENT_THRESHOLD_UV
 
 # ---------------------------------------------------------------------------
-# Paths & brand colors (matching NE strategy memo style)
+# Paths & brand colors
 # ---------------------------------------------------------------------------
 _LOGO_PATH = os.path.join(os.path.dirname(__file__), "logo-NE.png")
 
-_NE_DARK_TEAL = "#2C3E50"
-_NE_TEAL = "#00A5B5"
-_NE_LIGHT_TEAL = "#E8F6F8"
-_NE_GRAY = "#808080"
-_NE_LIGHT_GRAY = "#F5F5F5"
-_NE_TEXT = "#333333"
-_NE_PASS_GREEN = "#27ae60"
-_NE_FAIL_RED = "#e74c3c"
+_DARK_NAV = "#2C3E50"       # header bar, section headings
+_TEAL = "#00A5B5"           # subtitles, accents, table headers
+_TEAL_MUTED = "#7FB5BE"     # header bar second line
+_LIGHT_GRAY = "#F7F8F9"     # table alt rows
+_TEXT = "#333333"            # body text
+_GRAY = "#888888"            # footer, small text
+_PASS = "#27ae60"
+_FAIL = "#e74c3c"
 
 PAGE_W, PAGE_H = A4
+CONTENT_W = PAGE_W - 1.5 * inch  # usable width with margins
 
 
 # ---------------------------------------------------------------------------
 # Styles
 # ---------------------------------------------------------------------------
 
-def _build_styles():
-    styles = getSampleStyleSheet()
-
-    title_style = ParagraphStyle(
-        "NETitle", parent=styles["Heading1"],
-        fontSize=22, leading=28, textColor=colors.HexColor(_NE_DARK_TEAL),
-        spaceAfter=2, spaceBefore=20, alignment=TA_LEFT,
-        fontName="Helvetica-Bold",
-    )
-    subtitle_style = ParagraphStyle(
-        "NESubtitle", parent=styles["Normal"],
-        fontSize=11, leading=15, textColor=colors.HexColor(_NE_TEAL),
-        spaceAfter=16, alignment=TA_LEFT,
-        fontName="Helvetica",
-    )
-    heading_style = ParagraphStyle(
-        "NEHeading", parent=styles["Heading2"],
-        fontSize=14, leading=18, textColor=colors.HexColor(_NE_TEAL),
-        spaceAfter=8, spaceBefore=18,
-        fontName="Helvetica-Bold",
-    )
-    body_style = ParagraphStyle(
-        "NEBody", parent=styles["Normal"],
-        fontSize=9, leading=13, spaceAfter=6,
-        textColor=colors.HexColor(_NE_TEXT),
-        alignment=TA_JUSTIFY,
-    )
-    small_style = ParagraphStyle(
-        "NESmall", parent=styles["Normal"],
-        fontSize=7.5, leading=10, textColor=colors.HexColor(_NE_GRAY),
-    )
-    meta_style = ParagraphStyle(
-        "NEMeta", parent=styles["Normal"],
-        fontSize=9, leading=12, spaceAfter=3,
-        textColor=colors.HexColor(_NE_TEXT),
-    )
+def _styles():
+    s = getSampleStyleSheet()
     return {
-        "base": styles, "title": title_style, "subtitle": subtitle_style,
-        "heading": heading_style, "body": body_style, "small": small_style,
-        "meta": meta_style,
+        "title": ParagraphStyle(
+            "T", parent=s["Heading1"], fontSize=24, leading=30,
+            textColor=colors.HexColor(_DARK_NAV), spaceAfter=4, spaceBefore=0,
+            fontName="Helvetica-Bold", alignment=TA_LEFT,
+        ),
+        "subtitle": ParagraphStyle(
+            "ST", parent=s["Normal"], fontSize=12, leading=16,
+            textColor=colors.HexColor(_TEAL), spaceAfter=8,
+            fontName="Helvetica", alignment=TA_LEFT,
+        ),
+        "heading": ParagraphStyle(
+            "H", parent=s["Heading2"], fontSize=16, leading=22,
+            textColor=colors.HexColor(_DARK_NAV), spaceAfter=10, spaceBefore=24,
+            fontName="Helvetica-Bold", alignment=TA_LEFT,
+        ),
+        "body": ParagraphStyle(
+            "B", parent=s["Normal"], fontSize=10, leading=14, spaceAfter=8,
+            textColor=colors.HexColor(_TEXT), alignment=TA_JUSTIFY,
+        ),
+        "meta": ParagraphStyle(
+            "M", parent=s["Normal"], fontSize=9.5, leading=14, spaceAfter=2,
+            textColor=colors.HexColor(_TEXT), alignment=TA_LEFT,
+        ),
+        "small": ParagraphStyle(
+            "SM", parent=s["Normal"], fontSize=8, leading=11,
+            textColor=colors.HexColor(_GRAY),
+        ),
     }
 
 
 # ---------------------------------------------------------------------------
-# Header / footer (dark teal bar like NE strategy memos)
+# Header bar & footer (matching NE strategy memo)
 # ---------------------------------------------------------------------------
 
-def _header_footer(canvas, doc, report_type: str, gen_ts: str, filename: str):
+def _header_footer(canvas, doc, report_type: str, date_str: str, filename: str):
     canvas.saveState()
     w, h = PAGE_W, PAGE_H
+    left, right = doc.leftMargin, w - doc.rightMargin
 
-    # Dark teal header bar
-    bar_h = 0.45 * inch
-    canvas.setFillColor(colors.HexColor(_NE_DARK_TEAL))
+    # --- Dark header bar ---
+    bar_h = 0.5 * inch
+    canvas.setFillColor(colors.HexColor(_DARK_NAV))
     canvas.rect(0, h - bar_h, w, bar_h, fill=1, stroke=0)
 
-    # "NEUROELECTRICS" in white on the bar
+    # "NEUROELECTRICS" — white, bold
     canvas.setFont("Helvetica-Bold", 10)
     canvas.setFillColor(colors.white)
-    canvas.drawString(doc.leftMargin, h - 0.3 * inch, "NEUROELECTRICS")
+    canvas.drawString(left, h - 0.28 * inch, "NEUROELECTRICS")
 
-    # Report type below in smaller text
+    # Report type — muted teal, smaller
     canvas.setFont("Helvetica", 7)
-    canvas.setFillColor(colors.HexColor("#AABBCC"))
-    canvas.drawString(doc.leftMargin, h - 0.41 * inch, report_type.upper())
+    canvas.setFillColor(colors.HexColor(_TEAL_MUTED))
+    canvas.drawString(left, h - 0.42 * inch, report_type.upper())
 
-    # Date on the right
-    canvas.setFont("Helvetica", 8)
+    # Date — white, right-aligned
+    canvas.setFont("Helvetica", 9)
     canvas.setFillColor(colors.white)
-    canvas.drawRightString(w - doc.rightMargin, h - 0.3 * inch, gen_ts)
+    canvas.drawRightString(right, h - 0.28 * inch, date_str)
 
-    # Thin teal accent line below header
-    canvas.setStrokeColor(colors.HexColor(_NE_TEAL))
-    canvas.setLineWidth(1.5)
-    canvas.line(doc.leftMargin, h - bar_h - 2, w - doc.rightMargin, h - bar_h - 2)
+    # Thin teal accent line below bar
+    canvas.setStrokeColor(colors.HexColor(_TEAL))
+    canvas.setLineWidth(2)
+    canvas.line(0, h - bar_h, w, h - bar_h)
 
-    # Footer
-    left = doc.leftMargin
-    right = w - doc.rightMargin
-    footer_y = 0.35 * inch
-
-    # Thin line above footer
+    # --- Footer ---
+    fy = 0.35 * inch
     canvas.setStrokeColor(colors.HexColor("#CCCCCC"))
     canvas.setLineWidth(0.5)
-    canvas.line(left, footer_y + 8, right, footer_y + 8)
+    canvas.line(left, fy + 10, right, fy + 10)
 
     canvas.setFont("Helvetica", 6.5)
-    canvas.setFillColor(colors.HexColor(_NE_GRAY))
-    canvas.drawString(left, footer_y, f"Neuroelectrics  •  {filename}")
-    canvas.drawCentredString((left + right) / 2, footer_y, f"Page {doc.page}")
-    canvas.drawRightString(right, footer_y, "neuroelectrics.com")
+    canvas.setFillColor(colors.HexColor(_GRAY))
+    canvas.drawString(left, fy, f"Neuroelectrics  \u2022  {filename}")
+    canvas.drawRightString(right, fy, f"Page {doc.page}")
 
     canvas.restoreState()
 
 
 # ---------------------------------------------------------------------------
-# Figure helper — preserves actual aspect ratio
+# Figure helper — true aspect ratio from saved PNG
 # ---------------------------------------------------------------------------
 
-def _fig_to_image(fig, width_inches=6.2, dpi=150) -> Image:
-    """Convert a matplotlib figure to a ReportLab Image, preserving true aspect ratio."""
+def _fig_to_image(fig, width_inches=6.0, dpi=150) -> Image:
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     buf.seek(0)
-
-    # Read actual pixel dimensions from the saved PNG to get true aspect ratio
     from PIL import Image as PILImage
-    pil_img = PILImage.open(buf)
-    px_w, px_h = pil_img.size
-    aspect = px_h / px_w
+    px_w, px_h = PILImage.open(buf).size
     buf.seek(0)
-
-    img = Image(buf, width=width_inches * inch, height=width_inches * aspect * inch)
-    return img
+    return Image(buf, width=width_inches * inch, height=width_inches * (px_h / px_w) * inch)
 
 
-def _ne_hr():
-    """Horizontal rule in NE teal."""
+def _img_from_path(path: str, width_inches: float = 6.0) -> Image:
+    from PIL import Image as PILImage
+    px_w, px_h = PILImage.open(path).size
+    return Image(path, width=width_inches * inch, height=width_inches * (px_h / px_w) * inch)
+
+
+def _teal_hr():
     return HRFlowable(
-        width="100%", thickness=1, color=colors.HexColor(_NE_TEAL),
-        spaceBefore=6, spaceAfter=10,
+        width="100%", thickness=1.5, color=colors.HexColor(_TEAL),
+        spaceBefore=8, spaceAfter=12,
     )
 
 
 # ---------------------------------------------------------------------------
-# Table builder helper
+# Table helper — teal header, left-aligned body, generous padding
 # ---------------------------------------------------------------------------
 
-def _ne_table(data, col_widths, has_pass_col=False):
-    """Build a branded NE table with teal header and alternating rows."""
+def _ne_table(data, col_widths):
     table = Table(data, colWidths=col_widths)
-
-    style_cmds = [
-        # Header row
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(_NE_DARK_TEAL)),
+    n_rows = len(data)
+    cmds = [
+        # Header
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(_TEAL)),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, 0), 7.5),
+        ("FONTSIZE", (0, 0), (-1, 0), 8),
         # Body
         ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 1), (-1, -1), 7.5),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("FONTSIZE", (0, 1), (-1, -1), 8),
+        ("TEXTCOLOR", (0, 1), (-1, -1), colors.HexColor(_TEXT)),
+        ("ALIGN", (0, 0), (0, -1), "LEFT"),   # first col left
+        ("ALIGN", (1, 0), (-1, -1), "CENTER"), # rest centered
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        # Grid
-        ("LINEBELOW", (0, 0), (-1, 0), 1, colors.HexColor(_NE_TEAL)),
-        ("LINEBELOW", (0, -1), (-1, -1), 0.5, colors.HexColor("#CCCCCC")),
-        ("LINEAFTER", (0, 0), (-2, -1), 0.25, colors.HexColor("#E0E0E0")),
         # Padding
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("LEFTPADDING", (0, 0), (-1, -1), 4),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        # Lines
+        ("LINEBELOW", (0, 0), (-1, 0), 1, colors.HexColor(_TEAL)),
+        ("LINEBELOW", (0, -1), (-1, -1), 0.5, colors.HexColor("#CCCCCC")),
     ]
-
-    # Alternating row backgrounds
-    for i in range(1, len(data)):
+    # Subtle row separators + alternating background
+    for i in range(1, n_rows):
         if i % 2 == 0:
-            style_cmds.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor(_NE_LIGHT_GRAY)))
+            cmds.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor(_LIGHT_GRAY)))
+        if i < n_rows - 1:
+            cmds.append(("LINEBELOW", (0, i), (-1, i), 0.25, colors.HexColor("#E0E0E0")))
 
-    table.setStyle(TableStyle(style_cmds))
+    table.setStyle(TableStyle(cmds))
     return table
 
 
@@ -234,16 +217,16 @@ def generate_qc_report(
     start_time_s: float = 0.0,
     duration_s: Optional[float] = None,
 ) -> str:
-    """Generate a Signal Quality PDF report. Returns the path to the PDF."""
     analyzer = EasyAnalyzer(file_path)
     fs = analyzer.fs
-    total_duration = analyzer.get_file_duration()
+    total_dur = analyzer.get_file_duration()
     n_ch = analyzer.num_channels
 
     if duration_s is None:
-        duration_s = total_duration - start_time_s
+        duration_s = total_dur - start_time_s
 
     electrodes = _parse_electrodes(file_path, n_ch)
+    device = _parse_device(file_path)
 
     results = analyzer.process_window(start_time_s, duration_s)
     qc_metrics = analyzer.calculate_channel_metrics(
@@ -253,117 +236,96 @@ def generate_qc_report(
     with tempfile.TemporaryDirectory() as tmpdir:
         plot_paths = analyzer.generate_plots(results, tmpdir, "qc")
 
-        gen_ts = datetime.now().strftime("%B %d, %Y")
+        date_str = datetime.now().strftime("%B %Y")
         filename = os.path.basename(file_path)
-
         if output_path is None:
             output_path = file_path.replace(".easy", "_qc_report.pdf")
 
         doc = SimpleDocTemplate(
             output_path, pagesize=A4,
-            topMargin=0.7 * inch, bottomMargin=0.6 * inch,
+            topMargin=0.75 * inch, bottomMargin=0.6 * inch,
             leftMargin=0.75 * inch, rightMargin=0.75 * inch,
         )
-
-        s = _build_styles()
+        st = _styles()
         story = []
 
-        # Title block
-        story.append(Spacer(1, 12))
-        if os.path.isfile(_LOGO_PATH):
-            story.append(Image(_LOGO_PATH, width=1.6 * inch, height=0.6 * inch,
-                               hAlign="LEFT"))
-            story.append(Spacer(1, 10))
-
-        story.append(Paragraph("EEG Signal Quality Report", s["title"]))
+        # --- Title block (no logo in body — it lives in the header bar) ---
+        story.append(Spacer(1, 30))
+        story.append(Paragraph("EEG Signal Quality Report", st["title"]))
         story.append(Paragraph(
-            f"Automated per-channel quality assessment with PASS/FAIL thresholds",
-            s["subtitle"],
+            "Automated per-channel quality assessment with PASS/FAIL thresholds",
+            st["subtitle"],
         ))
-        story.append(_ne_hr())
+        story.append(_teal_hr())
 
-        # Metadata block
-        meta_items = [
-            f"<b>File:</b> {filename}",
-            f"<b>Device:</b> {_parse_device(file_path)}",
-            f"<b>Channels:</b> {n_ch} &nbsp;&nbsp; <b>Sampling rate:</b> {int(fs)} Hz",
-            f"<b>Duration:</b> {total_duration:.1f} s total &nbsp;&nbsp; "
-            f"<b>Window:</b> {start_time_s:.1f} – {start_time_s + duration_s:.1f} s",
-            f"<b>Generated:</b> {gen_ts}",
-        ]
-        for item in meta_items:
-            story.append(Paragraph(item, s["meta"]))
-        story.append(Spacer(1, 12))
+        # Metadata
+        story.append(Paragraph(f"FILE: {filename}", st["meta"]))
+        story.append(Paragraph(f"DEVICE: {device}", st["meta"]))
+        story.append(Paragraph(
+            f"CHANNELS: {n_ch} &nbsp;&nbsp;&nbsp; SAMPLING RATE: {int(fs)} Hz",
+            st["meta"]))
+        story.append(Paragraph(
+            f"DURATION: {total_dur:.1f} s &nbsp;&nbsp;&nbsp; "
+            f"WINDOW: {start_time_s:.1f} – {start_time_s + duration_s:.1f} s",
+            st["meta"]))
+        story.append(Paragraph(
+            f"DATE: {datetime.now().strftime('%B %d, %Y')}", st["meta"]))
+        story.append(_teal_hr())
 
-        # QC Summary
+        # QC summary
         total_pass = sum(1 for m in qc_metrics.values() if m.get("pass", False))
         total_ch = len(qc_metrics)
         if total_pass == total_ch:
-            summary_html = (
-                f'<font color="{_NE_PASS_GREEN}"><b>ALL {total_ch} CHANNELS PASS</b></font>'
-            )
+            qc_text = (f'<font color="{_PASS}"><b>ALL {total_ch} CHANNELS PASS</b></font>')
         else:
-            summary_html = (
-                f'<font color="{_NE_FAIL_RED}"><b>{total_ch - total_pass} of {total_ch} '
-                f'channels FAIL</b></font> &nbsp;({total_pass} pass)'
-            )
-        story.append(Paragraph(f"QC Result: {summary_html}", s["body"]))
-        story.append(Spacer(1, 10))
+            qc_text = (
+                f'<font color="{_FAIL}"><b>{total_ch - total_pass} of {total_ch} '
+                f'channels FAIL</b></font> &nbsp;({total_pass} pass)')
+        story.append(Paragraph(qc_text, st["body"]))
+        story.append(Spacer(1, 16))
 
-        # Metrics table
-        story.append(Paragraph("1. Per-Channel Metrics", s["heading"]))
+        # --- 1. Metrics table ---
+        story.append(Paragraph("1. Per-Channel Metrics", st["heading"]))
         story.append(_build_qc_table(qc_metrics, electrodes))
         story.append(Spacer(1, 6))
         story.append(Paragraph(
-            "* = flagged (exceeds threshold). RMS in µV. Line power in dB. "
+            f"* = exceeds threshold. RMS in µV. Line power in dB. "
             f"Event threshold: {DEFAULT_EVENT_THRESHOLD_UV:.1f} µV.",
-            s["small"],
+            st["small"],
         ))
 
-        # PSD plots
+        # --- 2. PSD plots ---
         for key in sorted(plot_paths.keys()):
             if "psd" in key:
                 story.append(PageBreak())
                 page_label = key.replace("psd_", "").replace("psd", "Channels 1–8")
-                story.append(Paragraph(f"2. Power Spectral Density — {page_label}", s["heading"]))
-                story.append(Spacer(1, 4))
-                story.append(_fig_to_image(
-                    _open_saved_fig(plot_paths[key]), width_inches=6.2
-                ) if False else _img_from_path(plot_paths[key], width_inches=6.2))
+                story.append(Paragraph(
+                    f"2. Power Spectral Density — {page_label}", st["heading"]))
+                story.append(Spacer(1, 6))
+                story.append(_img_from_path(plot_paths[key], width_inches=6.0))
 
-        # Time-series plots
-        section_num = 3
+        # --- 3+ Time-series plots ---
+        sec = 3
         for key in sorted(plot_paths.keys()):
             if "raw" in key or "filtered" in key:
                 story.append(PageBreak())
                 label = key.replace("_", " ").replace("page", "— page").title()
-                story.append(Paragraph(f"{section_num}. {label}", s["heading"]))
-                story.append(Spacer(1, 4))
-                story.append(_img_from_path(plot_paths[key], width_inches=6.2))
-                section_num += 1
+                story.append(Paragraph(f"{sec}. {label}", st["heading"]))
+                story.append(Spacer(1, 6))
+                story.append(_img_from_path(plot_paths[key], width_inches=6.0))
+                sec += 1
 
-        def _on_page(canvas, doc):
-            _header_footer(canvas, doc, "EEG Signal Quality Report", gen_ts, filename)
+        def on_page(canvas, doc):
+            _header_footer(canvas, doc, "EEG Signal Quality Report", date_str, filename)
 
-        doc.build(story, onFirstPage=_on_page, onLaterPages=_on_page)
+        doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
 
     return output_path
 
 
-def _img_from_path(path: str, width_inches: float = 6.2) -> Image:
-    """Load a saved PNG and create an Image flowable preserving aspect ratio."""
-    from PIL import Image as PILImage
-    pil_img = PILImage.open(path)
-    px_w, px_h = pil_img.size
-    aspect = px_h / px_w
-    return Image(path, width=width_inches * inch, height=width_inches * aspect * inch)
-
-
 def _build_qc_table(qc_metrics: dict, electrodes: list[str]) -> Table:
-    """Build the per-channel QC metrics table with NE styling."""
-    header = ["Ch", "Mean\n(µV)", "RMS raw\n(µV)", "RMS notch\n(µV)",
-              "RMS filt\n(µV)", "Line\n50/60 (dB)", "Kurtosis\n(notch)",
-              "Events\n(/s)", "Result"]
+    header = ["Channel", "Mean\n(µV)", "RMS raw\n(µV)", "RMS notch\n(µV)",
+              "RMS filt\n(µV)", "Line\n50/60 (dB)", "Kurtosis", "Events\n(/s)", "Result"]
 
     data = [header]
     for ch_idx in sorted(qc_metrics.keys()):
@@ -392,47 +354,45 @@ def _build_qc_table(qc_metrics: dict, electrodes: list[str]) -> Table:
             "PASS" if passed else "FAIL",
         ])
 
-    w = (PAGE_W - 1.5 * inch) / 9  # distribute evenly
-    col_widths = [w * 0.8] + [w] * 7 + [w * 1.2]
+    cw = CONTENT_W / 9
+    col_widths = [cw * 1.1] + [cw] * 7 + [cw * 0.9]
     table = Table(data, colWidths=col_widths)
 
-    style_cmds = [
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(_NE_DARK_TEAL)),
+    cmds = [
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(_TEAL)),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, 0), 7),
+        ("FONTSIZE", (0, 0), (-1, 0), 7.5),
         ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
         ("FONTSIZE", (0, 1), (-1, -1), 7.5),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("TEXTCOLOR", (0, 1), (-1, -1), colors.HexColor(_TEXT)),
+        ("ALIGN", (0, 0), (0, -1), "LEFT"),
+        ("ALIGN", (1, 0), (-1, -1), "CENTER"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LINEBELOW", (0, 0), (-1, 0), 1.5, colors.HexColor(_NE_TEAL)),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("LINEBELOW", (0, 0), (-1, 0), 1, colors.HexColor(_TEAL)),
+        ("LINEBELOW", (0, -1), (-1, -1), 0.5, colors.HexColor("#CCCCCC")),
     ]
 
     for row_i, ch_idx in enumerate(sorted(qc_metrics.keys()), start=1):
         passed = qc_metrics[ch_idx].get("pass", True)
-        # Subtle row alternation
-        if row_i % 2 == 0:
-            style_cmds.append(("BACKGROUND", (0, row_i), (-2, row_i),
-                               colors.HexColor(_NE_LIGHT_GRAY)))
-        # PASS/FAIL cell
+        # Row separators
+        if row_i < len(qc_metrics):
+            cmds.append(("LINEBELOW", (0, row_i), (-1, row_i), 0.25,
+                          colors.HexColor("#E0E0E0")))
+        # PASS/FAIL styling
         if passed:
-            style_cmds.append(("BACKGROUND", (-1, row_i), (-1, row_i),
-                               colors.HexColor("#E8F5E9")))
-            style_cmds.append(("TEXTCOLOR", (-1, row_i), (-1, row_i),
-                               colors.HexColor(_NE_PASS_GREEN)))
+            cmds.append(("TEXTCOLOR", (-1, row_i), (-1, row_i),
+                          colors.HexColor(_PASS)))
         else:
-            style_cmds.append(("BACKGROUND", (-1, row_i), (-1, row_i),
-                               colors.HexColor("#FFEBEE")))
-            style_cmds.append(("TEXTCOLOR", (-1, row_i), (-1, row_i),
-                               colors.HexColor(_NE_FAIL_RED)))
-        style_cmds.append(("FONTNAME", (-1, row_i), (-1, row_i), "Helvetica-Bold"))
+            cmds.append(("TEXTCOLOR", (-1, row_i), (-1, row_i),
+                          colors.HexColor(_FAIL)))
+        cmds.append(("FONTNAME", (-1, row_i), (-1, row_i), "Helvetica-Bold"))
 
-    # Bottom border
-    style_cmds.append(("LINEBELOW", (0, -1), (-1, -1), 0.5, colors.HexColor("#CCCCCC")))
-
-    table.setStyle(TableStyle(style_cmds))
+    table.setStyle(TableStyle(cmds))
     return table
 
 
@@ -459,14 +419,13 @@ def generate_analysis_report(
     start_time_s: float = 0.0,
     duration_s: Optional[float] = None,
 ) -> str:
-    """Generate a functional EEG Analysis PDF report. Returns PDF path."""
     eeg_uV, triggers, timestamps, ch_names = _load_easy_raw(file_path)
     n_samples, n_ch = eeg_uV.shape
     fs = 500
-    total_duration = n_samples / fs
+    total_dur = n_samples / fs
 
     if duration_s is None:
-        duration_s = total_duration - start_time_s
+        duration_s = total_dur - start_time_s
 
     s0 = int(start_time_s * fs)
     s1 = min(s0 + int(duration_s * fs), n_samples)
@@ -476,82 +435,76 @@ def generate_analysis_report(
     if output_path is None:
         output_path = file_path.replace(".easy", "_analysis_report.pdf")
 
-    gen_ts = datetime.now().strftime("%B %d, %Y")
+    date_str = datetime.now().strftime("%B %Y")
     filename = os.path.basename(file_path)
 
     doc = SimpleDocTemplate(
         output_path, pagesize=A4,
-        topMargin=0.7 * inch, bottomMargin=0.6 * inch,
+        topMargin=0.75 * inch, bottomMargin=0.6 * inch,
         leftMargin=0.75 * inch, rightMargin=0.75 * inch,
     )
-
-    st = _build_styles()
+    st = _styles()
     story = []
 
-    # Pre-compute all PSDs once (avoids redundant computation)
+    # Pre-compute all PSDs once
     nperseg = min(1024, len(eeg_win))
     psd_cache = {}
     for i in range(n_ch):
         f, psd = signal.welch(eeg_win[:, i], fs=fs, nperseg=nperseg)
         psd_cache[i] = (f, psd)
 
-    # --- Title page ---
-    story.append(Spacer(1, 12))
-    if os.path.isfile(_LOGO_PATH):
-        story.append(Image(_LOGO_PATH, width=1.6 * inch, height=0.6 * inch, hAlign="LEFT"))
-        story.append(Spacer(1, 10))
-
+    # --- Title block ---
+    story.append(Spacer(1, 30))
     story.append(Paragraph("EEG Analysis Report", st["title"]))
     story.append(Paragraph(
         "Spectral analysis, band powers, and functional EEG features",
         st["subtitle"],
     ))
-    story.append(_ne_hr())
+    story.append(_teal_hr())
 
     device = _parse_device(file_path)
-    meta_items = [
-        f"<b>File:</b> {filename}",
-        f"<b>Device:</b> {device} &nbsp;&nbsp; <b>Channels:</b> {n_ch} &nbsp;&nbsp; "
-        f"<b>Sampling rate:</b> {fs} Hz",
-        f"<b>Duration:</b> {total_duration:.1f} s total &nbsp;&nbsp; "
-        f"<b>Window:</b> {start_time_s:.1f} – {start_time_s + duration_s:.1f} s",
-        f"<b>Generated:</b> {gen_ts}",
-    ]
-    for item in meta_items:
-        story.append(Paragraph(item, st["meta"]))
-    story.append(Spacer(1, 14))
+    story.append(Paragraph(f"FILE: {filename}", st["meta"]))
+    story.append(Paragraph(
+        f"DEVICE: {device} &nbsp;&nbsp;&nbsp; CHANNELS: {n_ch} &nbsp;&nbsp;&nbsp; "
+        f"SAMPLING RATE: {fs} Hz", st["meta"]))
+    story.append(Paragraph(
+        f"DURATION: {total_dur:.1f} s &nbsp;&nbsp;&nbsp; "
+        f"WINDOW: {start_time_s:.1f} – {start_time_s + duration_s:.1f} s",
+        st["meta"]))
+    story.append(Paragraph(
+        f"DATE: {datetime.now().strftime('%B %d, %Y')}", st["meta"]))
+    story.append(_teal_hr())
 
     # --- 1. Raw EEG traces ---
     story.append(Paragraph("1. Raw EEG Traces", st["heading"]))
     fig_traces = _plot_raw_traces(eeg_win, trig_win, ch_names, fs, start_time_s)
-    story.append(_fig_to_image(fig_traces, width_inches=6.2))
+    story.append(_fig_to_image(fig_traces, width_inches=6.0))
 
     trig_indices = np.where(trig_win > 0)[0]
     if len(trig_indices) > 0:
         trig_text = ", ".join(
             f"{TRIGGER_MAP.get(trig_win[i], f'T{trig_win[i]}')} @ "
             f"{start_time_s + i/fs:.2f}s"
-            for i in trig_indices[:20]
-        )
+            for i in trig_indices[:20])
         story.append(Spacer(1, 4))
-        story.append(Paragraph(f"<b>Markers:</b> {trig_text}", st["small"]))
+        story.append(Paragraph(f"Markers: {trig_text}", st["small"]))
 
-    # --- 2. Spectral Analysis (PSD + heatmap) ---
+    # --- 2. Spectral Analysis ---
     story.append(PageBreak())
     story.append(Paragraph("2. Spectral Analysis", st["heading"]))
     fig_spectral = _plot_spectral_panels(eeg_win, ch_names, fs, psd_cache)
-    story.append(_fig_to_image(fig_spectral, width_inches=6.2))
-    story.append(Spacer(1, 10))
+    story.append(_fig_to_image(fig_spectral, width_inches=6.0))
+    story.append(Spacer(1, 14))
 
     # --- 3. Alpha Analysis ---
     story.append(Paragraph("3. Alpha Analysis", st["heading"]))
     fig_alpha = _plot_alpha_panels(eeg_win, trig_win, ch_names, fs, psd_cache)
-    story.append(_fig_to_image(fig_alpha, width_inches=6.2))
+    story.append(_fig_to_image(fig_alpha, width_inches=6.0))
 
-    # --- 4. Spectral Summary Table ---
+    # --- 4. Spectral Summary ---
     story.append(PageBreak())
     story.append(Paragraph("4. Spectral Summary", st["heading"]))
-    story.append(_build_spectral_table(ch_names, fs, psd_cache))
+    story.append(_build_spectral_table(ch_names, psd_cache))
     story.append(Spacer(1, 10))
 
     # Frontal alpha asymmetry
@@ -564,24 +517,23 @@ def generate_analysis_report(
             faa = np.log(np.mean(psd4[a_mask])) - np.log(np.mean(psd3[a_mask]))
             interp = "right > left (approach)" if faa > 0 else "left > right (withdrawal)"
             story.append(Paragraph(
-                f"<b>Frontal Alpha Asymmetry</b> (ln F4 − ln F3): {faa:.4f} → {interp}",
-                st["body"],
-            ))
+                f"Frontal Alpha Asymmetry (ln F4 − ln F3): "
+                f"<b>{faa:.4f}</b> → {interp}", st["body"]))
 
     # --- 5. Per-Channel Statistics ---
-    story.append(Spacer(1, 14))
+    story.append(Spacer(1, 16))
     story.append(Paragraph("5. Per-Channel Statistics", st["heading"]))
     story.append(_build_stats_table(eeg_win, ch_names))
 
-    def _on_page(canvas, doc):
-        _header_footer(canvas, doc, "EEG Analysis Report", gen_ts, filename)
+    def on_page(canvas, doc):
+        _header_footer(canvas, doc, "EEG Analysis Report", date_str, filename)
 
-    doc.build(story, onFirstPage=_on_page, onLaterPages=_on_page)
+    doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
     return output_path
 
 
 # ---------------------------------------------------------------------------
-# Analysis report plot helpers (optimized: accept psd_cache)
+# Plot helpers
 # ---------------------------------------------------------------------------
 
 def _plot_raw_traces(eeg_uV, triggers, ch_names, fs, t_offset=0.0):
@@ -593,25 +545,24 @@ def _plot_raw_traces(eeg_uV, triggers, ch_names, fs, t_offset=0.0):
     offsets = np.arange(n_ch) * spacing
 
     for i, ch in enumerate(ch_names):
-        ax.plot(time, eeg_uV[:, i] + offsets[i], linewidth=0.5, color="#2c3e50")
+        ax.plot(time, eeg_uV[:, i] + offsets[i], linewidth=0.5, color=_DARK_NAV)
         ax.text(time[0] - (time[-1] - time[0]) * 0.02, offsets[i], ch,
-                fontsize=8, va="center", ha="right", fontweight="bold", color="#2c3e50")
+                fontsize=8, va="center", ha="right", fontweight="bold", color=_DARK_NAV)
 
     for idx in np.where(triggers > 0)[0]:
         t = t_offset + idx / fs
         code = triggers[idx]
         label = TRIGGER_MAP.get(code, f"T{code}")
-        color = "#e74c3c" if code == 1 else "#2980b9"
-        ax.axvline(t, color=color, alpha=0.6, linestyle="--", linewidth=0.8)
+        clr = "#e74c3c" if code == 1 else "#2980b9"
+        ax.axvline(t, color=clr, alpha=0.6, linestyle="--", linewidth=0.8)
         ax.text(t + 0.05, offsets[-1] + spacing * 0.5, label,
-                color=color, fontsize=7, fontweight="bold")
+                color=clr, fontsize=7, fontweight="bold")
 
     ax.set_xlabel("Time (s)", fontsize=9)
     ax.set_yticks([])
     ax.set_xlim(time[0], time[-1])
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.spines["left"].set_visible(False)
+    for sp in ["top", "right", "left"]:
+        ax.spines[sp].set_visible(False)
     plt.tight_layout()
     return fig
 
@@ -634,13 +585,12 @@ def _plot_spectral_panels(eeg_uV, ch_names, fs, psd_cache):
 
     ax_psd.set_xlabel("Frequency (Hz)", fontsize=9)
     ax_psd.set_ylabel("PSD (µV²/Hz)", fontsize=9)
-    ax_psd.set_title("Power Spectral Density", fontsize=10, fontweight="bold", color="#2c3e50")
+    ax_psd.set_title("Power Spectral Density", fontsize=10, fontweight="bold", color=_DARK_NAV)
     ax_psd.legend(fontsize=6, ncol=max(1, n_ch // 4), loc="upper right")
     ax_psd.set_xlim(1, 45)
     ax_psd.spines["top"].set_visible(False)
     ax_psd.spines["right"].set_visible(False)
 
-    # Band power heatmap
     bp_matrix = np.zeros((n_ch, len(BANDS)))
     for i in range(n_ch):
         f, psd = psd_cache[i]
@@ -653,7 +603,7 @@ def _plot_spectral_panels(eeg_uV, ch_names, fs, psd_cache):
     ax_hm.set_xticklabels(list(BANDS.keys()), fontsize=8)
     ax_hm.set_yticks(range(n_ch))
     ax_hm.set_yticklabels(ch_names, fontsize=8)
-    ax_hm.set_title("log₁₀ Band Power", fontsize=10, fontweight="bold", color="#2c3e50")
+    ax_hm.set_title("log₁₀ Band Power", fontsize=10, fontweight="bold", color=_DARK_NAV)
     plt.colorbar(im, ax=ax_hm, shrink=0.8, pad=0.02)
 
     plt.tight_layout()
@@ -672,7 +622,6 @@ def _plot_alpha_panels(eeg_uV, triggers, ch_names, fs, psd_cache):
         eo_start = eo_indices[0]
         ec_start = ec_indices[0]
         eo_alpha, ec_alpha = [], []
-
         for i in range(n_ch):
             f_eo, psd_eo = signal.welch(
                 eeg_uV[eo_start:eo_start + seg_len, i], fs=fs, nperseg=min(512, seg_len))
@@ -696,11 +645,10 @@ def _plot_alpha_panels(eeg_uV, triggers, ch_names, fs, psd_cache):
                       transform=ax_react.transAxes, fontsize=10, color="#999999")
 
     ax_react.set_title("Alpha Reactivity: EO vs EC", fontsize=10, fontweight="bold",
-                       color="#2c3e50")
+                       color=_DARK_NAV)
     ax_react.spines["top"].set_visible(False)
     ax_react.spines["right"].set_visible(False)
 
-    # Alpha/Theta ratio from cached PSDs
     atr = []
     for i in range(n_ch):
         f, psd = psd_cache[i]
@@ -710,11 +658,11 @@ def _plot_alpha_panels(eeg_uV, triggers, ch_names, fs, psd_cache):
         theta_p = np.mean(psd[theta_m]) if theta_m.any() else 0
         atr.append(alpha_p / max(theta_p, 1e-10))
 
-    bar_colors = [_NE_PASS_GREEN if r > 1 else "#e67e22" for r in atr]
+    bar_colors = [_PASS if r > 1 else "#e67e22" for r in atr]
     ax_ratio.bar(ch_names, atr, color=bar_colors, alpha=0.85)
     ax_ratio.axhline(1.0, color="#999999", linestyle="--", linewidth=0.8, alpha=0.6)
     ax_ratio.set_ylabel("Alpha / Theta Ratio", fontsize=9)
-    ax_ratio.set_title("Alpha/Theta Ratio", fontsize=10, fontweight="bold", color="#2c3e50")
+    ax_ratio.set_title("Alpha/Theta Ratio", fontsize=10, fontweight="bold", color=_DARK_NAV)
     ax_ratio.spines["top"].set_visible(False)
     ax_ratio.spines["right"].set_visible(False)
 
@@ -722,53 +670,42 @@ def _plot_alpha_panels(eeg_uV, triggers, ch_names, fs, psd_cache):
     return fig
 
 
-def _build_spectral_table(ch_names, fs, psd_cache) -> Table:
-    """Build per-channel spectral summary table using cached PSDs."""
+def _build_spectral_table(ch_names, psd_cache) -> Table:
     header = ["Channel"] + list(BANDS.keys()) + ["α/θ", "Peak α (Hz)"]
     data = [header]
-
     for i, ch in enumerate(ch_names):
         f, psd = psd_cache[i]
         row = [ch]
         for bname, (lo, hi) in BANDS.items():
             m = (f >= lo) & (f <= hi)
             row.append(f"{np.mean(psd[m]):.3f}" if m.any() else "—")
-
         alpha_m = (f >= 8) & (f <= 13)
         theta_m = (f >= 4) & (f <= 8)
         alpha_p = np.mean(psd[alpha_m]) if alpha_m.any() else 0
         theta_p = np.mean(psd[theta_m]) if theta_m.any() else 0
         row.append(f"{alpha_p / max(theta_p, 1e-10):.2f}")
-
         if alpha_m.any():
-            peak = f[alpha_m][np.argmax(psd[alpha_m])]
-            row.append(f"{peak:.1f}")
+            row.append(f"{f[alpha_m][np.argmax(psd[alpha_m])]:.1f}")
         else:
             row.append("—")
-
         data.append(row)
 
-    n_cols = len(header)
-    avail = PAGE_W - 1.5 * inch
-    col_w = [avail * 0.12] + [avail * 0.11] * (n_cols - 1)
-    return _ne_table(data, col_w)
+    cw = CONTENT_W / len(header)
+    col_widths = [cw * 1.2] + [cw] * (len(header) - 1)
+    return _ne_table(data, col_widths)
 
 
 def _build_stats_table(eeg_uV, ch_names) -> Table:
-    """Build per-channel descriptive statistics table."""
     header = ["Channel", "Mean (µV)", "Std (µV)", "Min (µV)", "Max (µV)", "Pk-Pk (µV)"]
     data = [header]
     for i, ch in enumerate(ch_names):
         d = eeg_uV[:, i]
-        data.append([
-            ch,
-            f"{np.mean(d):.1f}", f"{np.std(d):.1f}",
-            f"{np.min(d):.1f}", f"{np.max(d):.1f}", f"{np.ptp(d):.1f}",
-        ])
+        data.append([ch, f"{np.mean(d):.1f}", f"{np.std(d):.1f}",
+                      f"{np.min(d):.1f}", f"{np.max(d):.1f}", f"{np.ptp(d):.1f}"])
 
-    avail = PAGE_W - 1.5 * inch
-    col_w = [avail * 0.15] + [avail * 0.17] * 5
-    return _ne_table(data, col_w)
+    cw = CONTENT_W / 6
+    col_widths = [cw * 1.2] + [cw] * 5
+    return _ne_table(data, col_widths)
 
 
 # ---------------------------------------------------------------------------
@@ -799,12 +736,10 @@ def _parse_device(file_path: str) -> str:
 
 
 def _load_easy_raw(filepath: str):
-    """Load .easy file returning raw arrays (for analysis report)."""
     import pandas as pd
     df = pd.read_csv(filepath, sep="\t", header=None)
     data = df.values
     n_cols = data.shape[1]
-
     info_path = Path(filepath).with_suffix(".info")
     ch_names = []
     if info_path.exists():
@@ -813,11 +748,9 @@ def _load_easy_raw(filepath: str):
                 line = line.strip()
                 if line.startswith("Channel") and ":" in line:
                     ch_names.append(line.split(":")[1].strip())
-
     if not ch_names:
         n_eeg = n_cols - 5
         ch_names = [f"Ch{i+1}" for i in range(n_eeg)]
-
     n_eeg = len(ch_names)
     eeg_uV = data[:, :n_eeg].astype(float) / 1000.0
     triggers = data[:, n_eeg + 3].astype(int)
