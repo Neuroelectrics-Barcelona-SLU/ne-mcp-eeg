@@ -92,6 +92,11 @@ def _styles():
             "SM", parent=s["Normal"], fontSize=8, leading=11,
             textColor=colors.HexColor(_GRAY),
         ),
+        "caption": ParagraphStyle(
+            "CAP", parent=s["Normal"], fontSize=8, leading=11,
+            textColor=colors.HexColor(_GRAY), alignment=TA_LEFT,
+            spaceBefore=4, spaceAfter=8, fontName="Helvetica-Oblique",
+        ),
     }
 
 
@@ -462,6 +467,11 @@ def generate_analysis_report(
     story.append(Paragraph(preview_label, st["heading"]))
     fig_traces = _plot_raw_traces(eeg_preview, trig_preview, ch_names, fs, start_time_s)
     story.append(_fig_to_image(fig_traces, width_inches=6.0))
+    story.append(Paragraph(
+        f"Figure 1: Demeaned EEG traces ({n_ch} channels, {preview_dur:.0f} s). "
+        f"Vertical scale bar indicates amplitude in µV. "
+        f"Dashed lines mark event triggers.",
+        st["caption"]))
 
     # Use trigger labels from metadata if available, fall back to defaults
     trig_map = dict(TRIGGER_MAP)
@@ -504,17 +514,27 @@ def generate_analysis_report(
         story.append(Spacer(1, 6))
         fig_psd = _plot_psd_grid(psd_cache, page_channels, ch_names, fs)
         story.append(_fig_to_image(fig_psd, width_inches=6.0))
+        story.append(Paragraph(
+            f"Figure 2.{page_idx + 1}: Power spectral density for channels "
+            f"{ch_start}–{ch_end}. "
+            f"Shaded bands: Delta (1–4 Hz), Theta (4–8 Hz), Alpha (8–13 Hz), Beta (13–30 Hz).",
+            st["caption"]))
 
     # ======= Spectral Overview: band power heatmap =======
     story.append(PageBreak())
     story.append(Paragraph("3. Spectral Overview", st["heading"]))
     story.append(Paragraph(
         f"Band power distribution across all {n_ch} channels. "
-        f"Values are log₁₀(mean PSD) in each standard frequency band, "
+        f"Values are log10(mean PSD) in each standard frequency band, "
         f"computed over the full {win_dur:.1f} s analysis window.",
         st["body"]))
     fig_heatmap = _plot_band_heatmap(ch_names, psd_cache)
     story.append(_fig_to_image(fig_heatmap, width_inches=5.5))
+    story.append(Paragraph(
+        f"Figure 3: Band power heatmap across all {n_ch} channels. "
+        f"Color scale shows log10(mean PSD) in each frequency band. "
+        f"Warmer colors indicate higher power.",
+        st["caption"]))
 
     # ======= Alpha Analysis =======
     story.append(PageBreak())
@@ -528,6 +548,11 @@ def generate_analysis_report(
         st["body"]))
     fig_atr = _plot_alpha_theta_ratio(ch_names, psd_cache)
     story.append(_fig_to_image(fig_atr, width_inches=6.0))
+    story.append(Paragraph(
+        "Figure 4: Alpha/theta power ratio per channel. "
+        "Green bars indicate alpha-dominant channels (ratio > 1); "
+        "orange indicates theta-dominant. Dashed line marks ratio = 1.",
+        st["caption"]))
     story.append(Spacer(1, 10))
 
     # Alpha reactivity (EO/EC) — only if markers present
@@ -541,6 +566,11 @@ def generate_analysis_report(
             st["body"]))
         fig_react = _plot_alpha_reactivity(eeg_win, trig_win, ch_names, fs)
         story.append(_fig_to_image(fig_react, width_inches=6.0))
+        story.append(Paragraph(
+            "Figure 5: Alpha-band (8-13 Hz) power comparison between Eyes Open (red) "
+            "and Eyes Closed (blue) segments. Increased posterior alpha during EC "
+            "is the normal Berger effect.",
+            st["caption"]))
     else:
         story.append(Paragraph(
             "<i>No Eyes Open / Eyes Closed markers detected in this recording. "
@@ -643,10 +673,19 @@ def _nice_scale(target_uv: float) -> float:
     return float(nice[-1])
 
 
+# Band shading definitions for PSD plots
+_PSD_BANDS = [
+    ("Delta", 1, 4, "#4A90D9", 0.12),
+    ("Theta", 4, 8, "#27AE60", 0.12),
+    ("Alpha", 8, 13, "#E67E22", 0.12),
+    ("Beta", 13, 30, "#E74C3C", 0.08),
+]
+
+
 def _plot_psd_grid(psd_cache, channels, ch_names, fs):
     """Plot PSDs on a 2x4 grid (up to 8 channels), using cached PSD data."""
     n_ch = len(channels)
-    fig, axes = plt.subplots(2, 4, figsize=(14, 7))
+    fig, axes = plt.subplots(2, 4, figsize=(14, 7.5))
     axes = axes.flatten()
 
     for plot_idx, ch_idx in enumerate(channels[:8]):
@@ -657,14 +696,12 @@ def _plot_psd_grid(psd_cache, channels, ch_names, fs):
         mask = (f >= 0.5) & (f <= 80)
         ax.semilogy(f[mask], psd[mask], linewidth=1.2, color="#0074D9")
 
-        # Band shading
-        ax.axvspan(1, 4, alpha=0.1, color="blue")
-        ax.axvspan(4, 8, alpha=0.1, color="green")
-        ax.axvspan(8, 13, alpha=0.1, color="orange")
-        ax.axvspan(13, 30, alpha=0.1, color="red")
+        # Band shading with labels on first subplot only
+        for band_name, lo, hi, clr, alpha in _PSD_BANDS:
+            ax.axvspan(lo, hi, alpha=alpha, color=clr)
 
         ax.set_xlabel("Frequency (Hz)", fontsize=8)
-        ax.set_ylabel("PSD (µV²/Hz)", fontsize=8)
+        ax.set_ylabel(r"PSD ($\mu V^2$/Hz)", fontsize=8)
         ax.set_title(f"{ch_label}", fontsize=10, fontweight="bold", color=_DARK_NAV)
         ax.grid(True, alpha=0.2, linestyle="--")
         ax.set_xlim(0.5, 80)
@@ -674,6 +711,13 @@ def _plot_psd_grid(psd_cache, channels, ch_names, fs):
 
     for idx in range(n_ch, 8):
         axes[idx].axis("off")
+
+    # Band legend on the figure (below the grid)
+    from matplotlib.patches import Patch
+    legend_patches = [Patch(facecolor=clr, alpha=alpha + 0.1, label=f"{name} ({lo}-{hi} Hz)")
+                      for name, lo, hi, clr, alpha in _PSD_BANDS]
+    fig.legend(handles=legend_patches, loc="lower center", ncol=4, fontsize=8,
+               frameon=False, bbox_to_anchor=(0.5, 0.01))
 
     plt.tight_layout()
     return fig
@@ -697,7 +741,7 @@ def _plot_band_heatmap(ch_names, psd_cache):
     ax.set_xticklabels(list(BANDS.keys()), fontsize=9)
     ax.set_yticks(range(n_ch))
     ax.set_yticklabels(ch_names, fontsize=8)
-    ax.set_title("log₁₀ Band Power (µV²/Hz)", fontsize=11, fontweight="bold", color=_DARK_NAV)
+    ax.set_title(r"$\log_{10}$ Band Power ($\mu V^2$/Hz)", fontsize=11, fontweight="bold", color=_DARK_NAV)
     plt.colorbar(im, ax=ax, shrink=0.8, pad=0.02)
     plt.tight_layout()
     return fig
