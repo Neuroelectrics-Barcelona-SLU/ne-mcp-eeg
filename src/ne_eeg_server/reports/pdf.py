@@ -592,12 +592,17 @@ def _plot_raw_traces(eeg_uV, triggers, ch_names, fs, t_offset=0.0):
     n_samples, n_ch = eeg_uV.shape
     time = t_offset + np.arange(n_samples) / fs
 
+    # Demean each channel so traces sit on their baseline
+    eeg_dm = eeg_uV - np.mean(eeg_uV, axis=0, keepdims=True)
+
     fig, ax = plt.subplots(figsize=(10, max(3, n_ch * 0.5)))
-    spacing = np.max(np.std(eeg_uV, axis=0)) * 5
+    spacing = np.max(np.std(eeg_dm, axis=0)) * 5
+    if spacing == 0:
+        spacing = 1.0
     offsets = np.arange(n_ch) * spacing
 
     for i, ch in enumerate(ch_names):
-        ax.plot(time, eeg_uV[:, i] + offsets[i], linewidth=0.5, color=_DARK_NAV)
+        ax.plot(time, eeg_dm[:, i] + offsets[i], linewidth=0.5, color=_DARK_NAV)
         ax.text(time[0] - (time[-1] - time[0]) * 0.02, offsets[i], ch,
                 fontsize=8, va="center", ha="right", fontweight="bold", color=_DARK_NAV)
 
@@ -610,6 +615,16 @@ def _plot_raw_traces(eeg_uV, triggers, ch_names, fs, t_offset=0.0):
         ax.text(t + 0.05, offsets[-1] + spacing * 0.5, label,
                 color=clr, fontsize=7, fontweight="bold")
 
+    # Scale bar: draw a vertical bar showing the amplitude scale
+    scale_uv = _nice_scale(spacing * 0.8)
+    bar_x = time[-1] + (time[-1] - time[0]) * 0.01
+    bar_y0 = offsets[0] - spacing * 0.3
+    bar_y1 = bar_y0 + scale_uv
+    ax.plot([bar_x, bar_x], [bar_y0, bar_y1], color="black", linewidth=1.5, clip_on=False)
+    ax.text(bar_x + (time[-1] - time[0]) * 0.008, (bar_y0 + bar_y1) / 2,
+            f"{scale_uv:.0f} µV" if scale_uv >= 1 else f"{scale_uv:.1f} µV",
+            fontsize=7, va="center", ha="left", color=_DARK_NAV)
+
     ax.set_xlabel("Time (s)", fontsize=9)
     ax.set_yticks([])
     ax.set_xlim(time[0], time[-1])
@@ -617,6 +632,15 @@ def _plot_raw_traces(eeg_uV, triggers, ch_names, fs, t_offset=0.0):
         ax.spines[sp].set_visible(False)
     plt.tight_layout()
     return fig
+
+
+def _nice_scale(target_uv: float) -> float:
+    """Pick a round scale bar value close to target_uv."""
+    nice = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000]
+    for v in nice:
+        if v >= target_uv * 0.5:
+            return float(v)
+    return float(nice[-1])
 
 
 def _plot_psd_grid(psd_cache, channels, ch_names, fs):
