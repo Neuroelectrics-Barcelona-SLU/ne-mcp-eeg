@@ -3,7 +3,7 @@ PDF report generators for EEG QC and EEG Analysis reports.
 
 Style matches Neuroelectrics branded documents: dark header bar,
 black titles, teal subtitles, justified body text, clean tables
-with teal headers and generous whitespace.
+with muted teal-blue headers and generous whitespace.
 
 Authors: G. Ruffini / Neuroelectrics, 2026
 """
@@ -37,21 +37,25 @@ from ne_eeg_server.analysis.analyzer import EasyAnalyzer
 from ne_eeg_server.analysis.metrics_defaults import DEFAULT_EVENT_THRESHOLD_UV
 
 # ---------------------------------------------------------------------------
-# Paths & brand colors
+# Paths & brand colors (matched to NE strategy memo)
 # ---------------------------------------------------------------------------
 _LOGO_PATH = os.path.join(os.path.dirname(__file__), "logo-NE.png")
 
 _DARK_NAV = "#2C3E50"       # header bar, section headings
-_TEAL = "#00A5B5"           # subtitles, accents, table headers
+_TABLE_HEAD = "#3A7D8C"     # table header — muted dark teal-blue (from reference)
+_TEAL = "#00A5B5"           # subtitles, accents
 _TEAL_MUTED = "#7FB5BE"     # header bar second line
 _LIGHT_GRAY = "#F7F8F9"     # table alt rows
 _TEXT = "#333333"            # body text
-_GRAY = "#888888"            # footer, small text
+_GRAY = "#888888"           # footer, small text
 _PASS = "#27ae60"
 _FAIL = "#e74c3c"
 
 PAGE_W, PAGE_H = A4
-CONTENT_W = PAGE_W - 1.5 * inch  # usable width with margins
+CONTENT_W = PAGE_W - 1.5 * inch
+
+# Raw EEG preview: show at most this many seconds in the traces plot
+_RAW_PREVIEW_MAX_S = 10.0
 
 
 # ---------------------------------------------------------------------------
@@ -92,7 +96,7 @@ def _styles():
 
 
 # ---------------------------------------------------------------------------
-# Header bar & footer (matching NE strategy memo)
+# Header bar & footer
 # ---------------------------------------------------------------------------
 
 def _header_footer(canvas, doc, report_type: str, date_str: str, filename: str):
@@ -100,32 +104,26 @@ def _header_footer(canvas, doc, report_type: str, date_str: str, filename: str):
     w, h = PAGE_W, PAGE_H
     left, right = doc.leftMargin, w - doc.rightMargin
 
-    # --- Dark header bar ---
     bar_h = 0.5 * inch
     canvas.setFillColor(colors.HexColor(_DARK_NAV))
     canvas.rect(0, h - bar_h, w, bar_h, fill=1, stroke=0)
 
-    # "NEUROELECTRICS" — white, bold
     canvas.setFont("Helvetica-Bold", 10)
     canvas.setFillColor(colors.white)
     canvas.drawString(left, h - 0.28 * inch, "NEUROELECTRICS")
 
-    # Report type — muted teal, smaller
     canvas.setFont("Helvetica", 7)
     canvas.setFillColor(colors.HexColor(_TEAL_MUTED))
     canvas.drawString(left, h - 0.42 * inch, report_type.upper())
 
-    # Date — white, right-aligned
     canvas.setFont("Helvetica", 9)
     canvas.setFillColor(colors.white)
     canvas.drawRightString(right, h - 0.28 * inch, date_str)
 
-    # Thin teal accent line below bar
     canvas.setStrokeColor(colors.HexColor(_TEAL))
     canvas.setLineWidth(2)
     canvas.line(0, h - bar_h, w, h - bar_h)
 
-    # --- Footer ---
     fy = 0.35 * inch
     canvas.setStrokeColor(colors.HexColor("#CCCCCC"))
     canvas.setLineWidth(0.5)
@@ -140,7 +138,7 @@ def _header_footer(canvas, doc, report_type: str, date_str: str, filename: str):
 
 
 # ---------------------------------------------------------------------------
-# Figure helper — true aspect ratio from saved PNG
+# Figure / image helpers
 # ---------------------------------------------------------------------------
 
 def _fig_to_image(fig, width_inches=6.0, dpi=150) -> Image:
@@ -168,41 +166,33 @@ def _teal_hr():
 
 
 # ---------------------------------------------------------------------------
-# Table helper — teal header, left-aligned body, generous padding
+# Table helper — muted teal-blue header (matching reference PDF)
 # ---------------------------------------------------------------------------
 
 def _ne_table(data, col_widths):
     table = Table(data, colWidths=col_widths)
     n_rows = len(data)
     cmds = [
-        # Header
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(_TEAL)),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(_TABLE_HEAD)),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, 0), 8),
-        # Body
         ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
         ("FONTSIZE", (0, 1), (-1, -1), 8),
         ("TEXTCOLOR", (0, 1), (-1, -1), colors.HexColor(_TEXT)),
-        ("ALIGN", (0, 0), (0, -1), "LEFT"),   # first col left
-        ("ALIGN", (1, 0), (-1, -1), "CENTER"), # rest centered
+        ("ALIGN", (0, 0), (0, -1), "LEFT"),
+        ("ALIGN", (1, 0), (-1, -1), "CENTER"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        # Padding
         ("TOPPADDING", (0, 0), (-1, -1), 6),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
         ("LEFTPADDING", (0, 0), (-1, -1), 8),
         ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-        # Lines
-        ("LINEBELOW", (0, 0), (-1, 0), 1, colors.HexColor(_TEAL)),
+        ("LINEBELOW", (0, 0), (-1, 0), 1, colors.HexColor(_TABLE_HEAD)),
         ("LINEBELOW", (0, -1), (-1, -1), 0.5, colors.HexColor("#CCCCCC")),
     ]
-    # Subtle row separators + alternating background
     for i in range(1, n_rows):
-        if i % 2 == 0:
-            cmds.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor(_LIGHT_GRAY)))
         if i < n_rows - 1:
             cmds.append(("LINEBELOW", (0, i), (-1, i), 0.25, colors.HexColor("#E0E0E0")))
-
     table.setStyle(TableStyle(cmds))
     return table
 
@@ -249,16 +239,14 @@ def generate_qc_report(
         st = _styles()
         story = []
 
-        # --- Title block (no logo in body — it lives in the header bar) ---
+        # Title block
         story.append(Spacer(1, 30))
         story.append(Paragraph("EEG Signal Quality Report", st["title"]))
         story.append(Paragraph(
             "Automated per-channel quality assessment with PASS/FAIL thresholds",
-            st["subtitle"],
-        ))
+            st["subtitle"]))
         story.append(_teal_hr())
 
-        # Metadata
         story.append(Paragraph(f"FILE: {filename}", st["meta"]))
         story.append(Paragraph(f"DEVICE: {device}", st["meta"]))
         story.append(Paragraph(
@@ -272,11 +260,10 @@ def generate_qc_report(
             f"DATE: {datetime.now().strftime('%B %d, %Y')}", st["meta"]))
         story.append(_teal_hr())
 
-        # QC summary
         total_pass = sum(1 for m in qc_metrics.values() if m.get("pass", False))
         total_ch = len(qc_metrics)
         if total_pass == total_ch:
-            qc_text = (f'<font color="{_PASS}"><b>ALL {total_ch} CHANNELS PASS</b></font>')
+            qc_text = f'<font color="{_PASS}"><b>ALL {total_ch} CHANNELS PASS</b></font>'
         else:
             qc_text = (
                 f'<font color="{_FAIL}"><b>{total_ch - total_pass} of {total_ch} '
@@ -284,17 +271,16 @@ def generate_qc_report(
         story.append(Paragraph(qc_text, st["body"]))
         story.append(Spacer(1, 16))
 
-        # --- 1. Metrics table ---
+        # 1. Metrics table
         story.append(Paragraph("1. Per-Channel Metrics", st["heading"]))
         story.append(_build_qc_table(qc_metrics, electrodes))
         story.append(Spacer(1, 6))
         story.append(Paragraph(
             f"* = exceeds threshold. RMS in µV. Line power in dB. "
             f"Event threshold: {DEFAULT_EVENT_THRESHOLD_UV:.1f} µV.",
-            st["small"],
-        ))
+            st["small"]))
 
-        # --- 2. PSD plots ---
+        # 2. PSD plots
         for key in sorted(plot_paths.keys()):
             if "psd" in key:
                 story.append(PageBreak())
@@ -304,7 +290,7 @@ def generate_qc_report(
                 story.append(Spacer(1, 6))
                 story.append(_img_from_path(plot_paths[key], width_inches=6.0))
 
-        # --- 3+ Time-series plots ---
+        # 3+ Time-series plots
         sec = 3
         for key in sorted(plot_paths.keys()):
             if "raw" in key or "filtered" in key:
@@ -317,7 +303,6 @@ def generate_qc_report(
 
         def on_page(canvas, doc):
             _header_footer(canvas, doc, "EEG Signal Quality Report", date_str, filename)
-
         doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
 
     return output_path
@@ -326,7 +311,6 @@ def generate_qc_report(
 def _build_qc_table(qc_metrics: dict, electrodes: list[str]) -> Table:
     header = ["Channel", "Mean\n(µV)", "RMS raw\n(µV)", "RMS notch\n(µV)",
               "RMS filt\n(µV)", "Line\n50/60 (dB)", "Kurtosis", "Events\n(/s)", "Result"]
-
     data = [header]
     for ch_idx in sorted(qc_metrics.keys()):
         m = qc_metrics[ch_idx]
@@ -359,7 +343,7 @@ def _build_qc_table(qc_metrics: dict, electrodes: list[str]) -> Table:
     table = Table(data, colWidths=col_widths)
 
     cmds = [
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(_TEAL)),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(_TABLE_HEAD)),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, 0), 7.5),
@@ -373,23 +357,18 @@ def _build_qc_table(qc_metrics: dict, electrodes: list[str]) -> Table:
         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("LINEBELOW", (0, 0), (-1, 0), 1, colors.HexColor(_TEAL)),
+        ("LINEBELOW", (0, 0), (-1, 0), 1, colors.HexColor(_TABLE_HEAD)),
         ("LINEBELOW", (0, -1), (-1, -1), 0.5, colors.HexColor("#CCCCCC")),
     ]
-
     for row_i, ch_idx in enumerate(sorted(qc_metrics.keys()), start=1):
         passed = qc_metrics[ch_idx].get("pass", True)
-        # Row separators
         if row_i < len(qc_metrics):
             cmds.append(("LINEBELOW", (0, row_i), (-1, row_i), 0.25,
                           colors.HexColor("#E0E0E0")))
-        # PASS/FAIL styling
         if passed:
-            cmds.append(("TEXTCOLOR", (-1, row_i), (-1, row_i),
-                          colors.HexColor(_PASS)))
+            cmds.append(("TEXTCOLOR", (-1, row_i), (-1, row_i), colors.HexColor(_PASS)))
         else:
-            cmds.append(("TEXTCOLOR", (-1, row_i), (-1, row_i),
-                          colors.HexColor(_FAIL)))
+            cmds.append(("TEXTCOLOR", (-1, row_i), (-1, row_i), colors.HexColor(_FAIL)))
         cmds.append(("FONTNAME", (-1, row_i), (-1, row_i), "Helvetica-Bold"))
 
     table.setStyle(TableStyle(cmds))
@@ -397,7 +376,7 @@ def _build_qc_table(qc_metrics: dict, electrodes: list[str]) -> Table:
 
 
 # ===========================================================================
-# EEG Analysis Report
+# EEG Analysis Report (redesigned for 8/20/32 channel recordings)
 # ===========================================================================
 
 BANDS = {
@@ -431,6 +410,7 @@ def generate_analysis_report(
     s1 = min(s0 + int(duration_s * fs), n_samples)
     eeg_win = eeg_uV[s0:s1]
     trig_win = triggers[s0:s1]
+    win_dur = (s1 - s0) / fs
 
     if output_path is None:
         output_path = file_path.replace(".easy", "_analysis_report.pdf")
@@ -446,20 +426,19 @@ def generate_analysis_report(
     st = _styles()
     story = []
 
-    # Pre-compute all PSDs once
+    # Pre-compute all PSDs once over the FULL analysis window
     nperseg = min(1024, len(eeg_win))
     psd_cache = {}
     for i in range(n_ch):
         f, psd = signal.welch(eeg_win[:, i], fs=fs, nperseg=nperseg)
         psd_cache[i] = (f, psd)
 
-    # --- Title block ---
+    # ======= PAGE 1: Title + metadata + recording overview =======
     story.append(Spacer(1, 30))
     story.append(Paragraph("EEG Analysis Report", st["title"]))
     story.append(Paragraph(
         "Spectral analysis, band powers, and functional EEG features",
-        st["subtitle"],
-    ))
+        st["subtitle"]))
     story.append(_teal_hr())
 
     device = _parse_device(file_path)
@@ -468,16 +447,25 @@ def generate_analysis_report(
         f"DEVICE: {device} &nbsp;&nbsp;&nbsp; CHANNELS: {n_ch} &nbsp;&nbsp;&nbsp; "
         f"SAMPLING RATE: {fs} Hz", st["meta"]))
     story.append(Paragraph(
-        f"DURATION: {total_dur:.1f} s &nbsp;&nbsp;&nbsp; "
-        f"WINDOW: {start_time_s:.1f} – {start_time_s + duration_s:.1f} s",
-        st["meta"]))
+        f"TOTAL DURATION: {total_dur:.1f} s &nbsp;&nbsp;&nbsp; "
+        f"ANALYSIS WINDOW: {start_time_s:.1f} – {start_time_s + duration_s:.1f} s "
+        f"({win_dur:.1f} s)", st["meta"]))
     story.append(Paragraph(
         f"DATE: {datetime.now().strftime('%B %d, %Y')}", st["meta"]))
     story.append(_teal_hr())
 
-    # --- 1. Raw EEG traces ---
-    story.append(Paragraph("1. Raw EEG Traces", st["heading"]))
-    fig_traces = _plot_raw_traces(eeg_win, trig_win, ch_names, fs, start_time_s)
+    # 1. Raw EEG Preview (limited to _RAW_PREVIEW_MAX_S for readability)
+    preview_dur = min(win_dur, _RAW_PREVIEW_MAX_S)
+    preview_end = s0 + int(preview_dur * fs)
+    eeg_preview = eeg_uV[s0:preview_end]
+    trig_preview = triggers[s0:preview_end]
+
+    if preview_dur < win_dur:
+        preview_label = f"1. Raw EEG Preview (first {preview_dur:.0f} s of {win_dur:.0f} s analysis window)"
+    else:
+        preview_label = "1. Raw EEG Traces"
+    story.append(Paragraph(preview_label, st["heading"]))
+    fig_traces = _plot_raw_traces(eeg_preview, trig_preview, ch_names, fs, start_time_s)
     story.append(_fig_to_image(fig_traces, width_inches=6.0))
 
     trig_indices = np.where(trig_win > 0)[0]
@@ -487,25 +475,77 @@ def generate_analysis_report(
             f"{start_time_s + i/fs:.2f}s"
             for i in trig_indices[:20])
         story.append(Spacer(1, 4))
-        story.append(Paragraph(f"Markers: {trig_text}", st["small"]))
+        story.append(Paragraph(f"Markers detected: {trig_text}", st["small"]))
 
-    # --- 2. Spectral Analysis ---
+    if preview_dur < win_dur:
+        story.append(Spacer(1, 4))
+        story.append(Paragraph(
+            f"<i>Note: Raw trace shows the first {preview_dur:.0f} s for readability. "
+            f"All spectral analyses below use the full {win_dur:.0f} s window.</i>",
+            st["small"]))
+
+    # ======= PSD Grid — paginated, 8 channels per page =======
+    channels_all = list(range(n_ch))
+    psd_pages = [channels_all[i:i+8] for i in range(0, len(channels_all), 8)]
+
+    for page_idx, page_channels in enumerate(psd_pages):
+        story.append(PageBreak())
+        ch_start = page_channels[0] + 1
+        ch_end = page_channels[-1] + 1
+        ch_labels = [ch_names[c] for c in page_channels]
+        story.append(Paragraph(
+            f"2. Power Spectral Density — Channels {ch_start}–{ch_end} "
+            f"({', '.join(ch_labels)})",
+            st["heading"]))
+        story.append(Paragraph(
+            f"Welch's method, {nperseg}-sample segments, computed over "
+            f"full {win_dur:.1f} s analysis window.",
+            st["small"]))
+        story.append(Spacer(1, 6))
+        fig_psd = _plot_psd_grid(psd_cache, page_channels, ch_names, fs)
+        story.append(_fig_to_image(fig_psd, width_inches=6.0))
+
+    # ======= Spectral Overview: band power heatmap =======
     story.append(PageBreak())
-    story.append(Paragraph("2. Spectral Analysis", st["heading"]))
-    fig_spectral = _plot_spectral_panels(eeg_win, ch_names, fs, psd_cache)
-    story.append(_fig_to_image(fig_spectral, width_inches=6.0))
-    story.append(Spacer(1, 14))
+    story.append(Paragraph("3. Spectral Overview", st["heading"]))
+    story.append(Paragraph(
+        f"Band power distribution across all {n_ch} channels. "
+        f"Values are log₁₀(mean PSD) in each standard frequency band, "
+        f"computed over the full {win_dur:.1f} s analysis window.",
+        st["body"]))
+    fig_heatmap = _plot_band_heatmap(ch_names, psd_cache)
+    story.append(_fig_to_image(fig_heatmap, width_inches=5.5))
 
-    # --- 3. Alpha Analysis ---
-    story.append(Paragraph("3. Alpha Analysis", st["heading"]))
-    fig_alpha = _plot_alpha_panels(eeg_win, trig_win, ch_names, fs, psd_cache)
-    story.append(_fig_to_image(fig_alpha, width_inches=6.0))
-
-    # --- 4. Spectral Summary ---
+    # ======= Alpha Analysis =======
     story.append(PageBreak())
-    story.append(Paragraph("4. Spectral Summary", st["heading"]))
-    story.append(_build_spectral_table(ch_names, psd_cache))
+    story.append(Paragraph("4. Alpha Analysis", st["heading"]))
+
+    # Alpha/theta ratio
+    story.append(Paragraph(
+        "Alpha/theta power ratio by channel. Ratio > 1 indicates alpha-dominant activity "
+        "(green), ratio < 1 indicates theta-dominant (orange). "
+        "Posterior alpha dominance is a marker of normal resting-state EEG.",
+        st["body"]))
+    fig_atr = _plot_alpha_theta_ratio(ch_names, psd_cache)
+    story.append(_fig_to_image(fig_atr, width_inches=6.0))
     story.append(Spacer(1, 10))
+
+    # Alpha reactivity (EO/EC) — only if markers present
+    eo_indices = np.where(trig_win == 1)[0]
+    ec_indices = np.where(trig_win == 2)[0]
+    if len(eo_indices) > 0 and len(ec_indices) > 0:
+        story.append(Paragraph(
+            "Alpha reactivity: comparison of alpha-band (8–13 Hz) power during "
+            "Eyes Open vs Eyes Closed segments. Healthy subjects typically show "
+            "increased posterior alpha during EC (Berger effect).",
+            st["body"]))
+        fig_react = _plot_alpha_reactivity(eeg_win, trig_win, ch_names, fs)
+        story.append(_fig_to_image(fig_react, width_inches=6.0))
+    else:
+        story.append(Paragraph(
+            "<i>No Eyes Open / Eyes Closed markers detected in this recording. "
+            "Alpha reactivity analysis requires trigger codes 1 (EO) and 2 (EC).</i>",
+            st["small"]))
 
     # Frontal alpha asymmetry
     if "F3" in ch_names and "F4" in ch_names:
@@ -515,25 +555,37 @@ def generate_analysis_report(
         a_mask = (f_ >= 8) & (f_ <= 13)
         if a_mask.any():
             faa = np.log(np.mean(psd4[a_mask])) - np.log(np.mean(psd3[a_mask]))
-            interp = "right > left (approach)" if faa > 0 else "left > right (withdrawal)"
+            interp = "right > left (approach tendency)" if faa > 0 else "left > right (withdrawal tendency)"
+            story.append(Spacer(1, 10))
             story.append(Paragraph(
-                f"Frontal Alpha Asymmetry (ln F4 − ln F3): "
-                f"<b>{faa:.4f}</b> → {interp}", st["body"]))
+                f"<b>Frontal Alpha Asymmetry</b> (ln F4 − ln F3): {faa:.4f} → {interp}. "
+                f"Positive values indicate relatively greater left frontal activity.",
+                st["body"]))
 
-    # --- 5. Per-Channel Statistics ---
+    # ======= Summary Tables =======
+    story.append(PageBreak())
+    story.append(Paragraph("5. Spectral Summary", st["heading"]))
+    story.append(Paragraph(
+        f"Mean PSD (µV²/Hz) per frequency band, alpha/theta ratio, and peak alpha "
+        f"frequency for each channel. Computed over the full {win_dur:.1f} s analysis window.",
+        st["body"]))
+    story.append(_build_spectral_table(ch_names, psd_cache))
     story.append(Spacer(1, 16))
-    story.append(Paragraph("5. Per-Channel Statistics", st["heading"]))
+
+    story.append(Paragraph("6. Per-Channel Statistics", st["heading"]))
+    story.append(Paragraph(
+        "Descriptive statistics (µV) for each channel over the analysis window.",
+        st["body"]))
     story.append(_build_stats_table(eeg_win, ch_names))
 
     def on_page(canvas, doc):
         _header_footer(canvas, doc, "EEG Analysis Report", date_str, filename)
-
     doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
     return output_path
 
 
 # ---------------------------------------------------------------------------
-# Plot helpers
+# Analysis report plot helpers
 # ---------------------------------------------------------------------------
 
 def _plot_raw_traces(eeg_uV, triggers, ch_names, fs, t_offset=0.0):
@@ -567,30 +619,45 @@ def _plot_raw_traces(eeg_uV, triggers, ch_names, fs, t_offset=0.0):
     return fig
 
 
-def _plot_spectral_panels(eeg_uV, ch_names, fs, psd_cache):
-    n_ch = eeg_uV.shape[1]
-    fig, (ax_psd, ax_hm) = plt.subplots(1, 2, figsize=(11, 4),
-                                         gridspec_kw={"width_ratios": [1.2, 1]})
+def _plot_psd_grid(psd_cache, channels, ch_names, fs):
+    """Plot PSDs on a 2x4 grid (up to 8 channels), using cached PSD data."""
+    n_ch = len(channels)
+    fig, axes = plt.subplots(2, 4, figsize=(14, 7))
+    axes = axes.flatten()
 
-    cmap_colors = plt.cm.viridis(np.linspace(0.15, 0.85, n_ch))
-    for i, ch in enumerate(ch_names):
-        f, psd = psd_cache[i]
-        mask = (f >= 1) & (f <= 45)
-        ax_psd.semilogy(f[mask], psd[mask], label=ch, color=cmap_colors[i], linewidth=1.0)
+    for plot_idx, ch_idx in enumerate(channels[:8]):
+        ax = axes[plot_idx]
+        f, psd = psd_cache[ch_idx]
+        ch_label = ch_names[ch_idx]
 
-    for sym, ((lo, hi), col) in BAND_SHADING.items():
-        ax_psd.axvspan(lo, hi, alpha=0.2, color=col)
-        ylim = ax_psd.get_ylim()
-        ax_psd.text((lo + hi) / 2, ylim[1] * 0.3, sym, ha="center", fontsize=9, alpha=0.5)
+        mask = (f >= 0.5) & (f <= 80)
+        ax.semilogy(f[mask], psd[mask], linewidth=1.2, color="#0074D9")
 
-    ax_psd.set_xlabel("Frequency (Hz)", fontsize=9)
-    ax_psd.set_ylabel("PSD (µV²/Hz)", fontsize=9)
-    ax_psd.set_title("Power Spectral Density", fontsize=10, fontweight="bold", color=_DARK_NAV)
-    ax_psd.legend(fontsize=6, ncol=max(1, n_ch // 4), loc="upper right")
-    ax_psd.set_xlim(1, 45)
-    ax_psd.spines["top"].set_visible(False)
-    ax_psd.spines["right"].set_visible(False)
+        # Band shading
+        ax.axvspan(1, 4, alpha=0.1, color="blue")
+        ax.axvspan(4, 8, alpha=0.1, color="green")
+        ax.axvspan(8, 13, alpha=0.1, color="orange")
+        ax.axvspan(13, 30, alpha=0.1, color="red")
 
+        ax.set_xlabel("Frequency (Hz)", fontsize=8)
+        ax.set_ylabel("PSD (µV²/Hz)", fontsize=8)
+        ax.set_title(f"{ch_label}", fontsize=10, fontweight="bold", color=_DARK_NAV)
+        ax.grid(True, alpha=0.2, linestyle="--")
+        ax.set_xlim(0.5, 80)
+        ax.tick_params(labelsize=7)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+
+    for idx in range(n_ch, 8):
+        axes[idx].axis("off")
+
+    plt.tight_layout()
+    return fig
+
+
+def _plot_band_heatmap(ch_names, psd_cache):
+    """Band power heatmap — scales well to 8/20/32 channels."""
+    n_ch = len(ch_names)
     bp_matrix = np.zeros((n_ch, len(BANDS)))
     for i in range(n_ch):
         f, psd = psd_cache[i]
@@ -598,57 +665,23 @@ def _plot_spectral_panels(eeg_uV, ch_names, fs, psd_cache):
             m = (f >= lo) & (f <= hi)
             bp_matrix[i, j] = np.log10(np.mean(psd[m]) + 1e-10) if m.any() else -10
 
-    im = ax_hm.imshow(bp_matrix, aspect="auto", cmap="YlOrRd", interpolation="nearest")
-    ax_hm.set_xticks(range(len(BANDS)))
-    ax_hm.set_xticklabels(list(BANDS.keys()), fontsize=8)
-    ax_hm.set_yticks(range(n_ch))
-    ax_hm.set_yticklabels(ch_names, fontsize=8)
-    ax_hm.set_title("log₁₀ Band Power", fontsize=10, fontweight="bold", color=_DARK_NAV)
-    plt.colorbar(im, ax=ax_hm, shrink=0.8, pad=0.02)
-
+    # Adjust figure height based on channel count
+    fig_h = max(3, n_ch * 0.35 + 1.5)
+    fig, ax = plt.subplots(figsize=(8, fig_h))
+    im = ax.imshow(bp_matrix, aspect="auto", cmap="YlOrRd", interpolation="nearest")
+    ax.set_xticks(range(len(BANDS)))
+    ax.set_xticklabels(list(BANDS.keys()), fontsize=9)
+    ax.set_yticks(range(n_ch))
+    ax.set_yticklabels(ch_names, fontsize=8)
+    ax.set_title("log₁₀ Band Power (µV²/Hz)", fontsize=11, fontweight="bold", color=_DARK_NAV)
+    plt.colorbar(im, ax=ax, shrink=0.8, pad=0.02)
     plt.tight_layout()
     return fig
 
 
-def _plot_alpha_panels(eeg_uV, triggers, ch_names, fs, psd_cache):
-    n_ch = eeg_uV.shape[1]
-    fig, (ax_react, ax_ratio) = plt.subplots(1, 2, figsize=(11, 3.5))
-
-    eo_indices = np.where(triggers == 1)[0]
-    ec_indices = np.where(triggers == 2)[0]
-    seg_len = int(2 * fs)
-
-    if len(eo_indices) > 0 and len(ec_indices) > 0:
-        eo_start = eo_indices[0]
-        ec_start = ec_indices[0]
-        eo_alpha, ec_alpha = [], []
-        for i in range(n_ch):
-            f_eo, psd_eo = signal.welch(
-                eeg_uV[eo_start:eo_start + seg_len, i], fs=fs, nperseg=min(512, seg_len))
-            f_ec, psd_ec = signal.welch(
-                eeg_uV[ec_start:ec_start + seg_len, i], fs=fs, nperseg=min(512, seg_len))
-            m_eo = (f_eo >= 8) & (f_eo <= 13)
-            m_ec = (f_ec >= 8) & (f_ec <= 13)
-            eo_alpha.append(np.mean(psd_eo[m_eo]) if m_eo.any() else 0)
-            ec_alpha.append(np.mean(psd_ec[m_ec]) if m_ec.any() else 0)
-
-        x = np.arange(n_ch)
-        w = 0.35
-        ax_react.bar(x - w/2, eo_alpha, w, label="Eyes Open", color="#e74c3c", alpha=0.8)
-        ax_react.bar(x + w/2, ec_alpha, w, label="Eyes Closed", color="#2980b9", alpha=0.8)
-        ax_react.set_xticks(x)
-        ax_react.set_xticklabels(ch_names, fontsize=8)
-        ax_react.set_ylabel("Alpha Power (µV²/Hz)", fontsize=9)
-        ax_react.legend(fontsize=7)
-    else:
-        ax_react.text(0.5, 0.5, "No EO/EC triggers found", ha="center", va="center",
-                      transform=ax_react.transAxes, fontsize=10, color="#999999")
-
-    ax_react.set_title("Alpha Reactivity: EO vs EC", fontsize=10, fontweight="bold",
-                       color=_DARK_NAV)
-    ax_react.spines["top"].set_visible(False)
-    ax_react.spines["right"].set_visible(False)
-
+def _plot_alpha_theta_ratio(ch_names, psd_cache):
+    """Alpha/theta ratio bar chart."""
+    n_ch = len(ch_names)
     atr = []
     for i in range(n_ch):
         f, psd = psd_cache[i]
@@ -658,14 +691,57 @@ def _plot_alpha_panels(eeg_uV, triggers, ch_names, fs, psd_cache):
         theta_p = np.mean(psd[theta_m]) if theta_m.any() else 0
         atr.append(alpha_p / max(theta_p, 1e-10))
 
+    fig_w = max(6, n_ch * 0.5 + 2)
+    fig, ax = plt.subplots(figsize=(fig_w, 3.5))
     bar_colors = [_PASS if r > 1 else "#e67e22" for r in atr]
-    ax_ratio.bar(ch_names, atr, color=bar_colors, alpha=0.85)
-    ax_ratio.axhline(1.0, color="#999999", linestyle="--", linewidth=0.8, alpha=0.6)
-    ax_ratio.set_ylabel("Alpha / Theta Ratio", fontsize=9)
-    ax_ratio.set_title("Alpha/Theta Ratio", fontsize=10, fontweight="bold", color=_DARK_NAV)
-    ax_ratio.spines["top"].set_visible(False)
-    ax_ratio.spines["right"].set_visible(False)
+    ax.bar(ch_names, atr, color=bar_colors, alpha=0.85, width=0.6)
+    ax.axhline(1.0, color="#999999", linestyle="--", linewidth=0.8, alpha=0.6)
+    ax.set_ylabel("Alpha / Theta Ratio", fontsize=9)
+    ax.set_title("Alpha/Theta Ratio by Channel", fontsize=10, fontweight="bold", color=_DARK_NAV)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.tick_params(axis="x", labelsize=8)
+    plt.tight_layout()
+    return fig
 
+
+def _plot_alpha_reactivity(eeg_uV, triggers, ch_names, fs):
+    """Alpha power comparison: Eyes Open vs Eyes Closed."""
+    n_ch = len(ch_names)
+    n_samples = eeg_uV.shape[0]
+    eo_indices = np.where(triggers == 1)[0]
+    ec_indices = np.where(triggers == 2)[0]
+    seg_len = int(2 * fs)
+
+    eo_start = eo_indices[0]
+    ec_start = ec_indices[0]
+    eo_alpha, ec_alpha = [], []
+    for i in range(n_ch):
+        eo_end = min(eo_start + seg_len, n_samples)
+        ec_end = min(ec_start + seg_len, n_samples)
+        f_eo, psd_eo = signal.welch(eeg_uV[eo_start:eo_end, i], fs=fs,
+                                     nperseg=min(512, eo_end - eo_start))
+        f_ec, psd_ec = signal.welch(eeg_uV[ec_start:ec_end, i], fs=fs,
+                                     nperseg=min(512, ec_end - ec_start))
+        m_eo = (f_eo >= 8) & (f_eo <= 13)
+        m_ec = (f_ec >= 8) & (f_ec <= 13)
+        eo_alpha.append(np.mean(psd_eo[m_eo]) if m_eo.any() else 0)
+        ec_alpha.append(np.mean(psd_ec[m_ec]) if m_ec.any() else 0)
+
+    fig_w = max(6, n_ch * 0.6 + 2)
+    fig, ax = plt.subplots(figsize=(fig_w, 3.5))
+    x = np.arange(n_ch)
+    w = 0.35
+    ax.bar(x - w/2, eo_alpha, w, label="Eyes Open", color="#e74c3c", alpha=0.8)
+    ax.bar(x + w/2, ec_alpha, w, label="Eyes Closed", color="#2980b9", alpha=0.8)
+    ax.set_xticks(x)
+    ax.set_xticklabels(ch_names, fontsize=8)
+    ax.set_ylabel("Alpha Power (µV²/Hz)", fontsize=9)
+    ax.set_title("Alpha Reactivity: Eyes Open vs Eyes Closed", fontsize=10,
+                 fontweight="bold", color=_DARK_NAV)
+    ax.legend(fontsize=8)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
     plt.tight_layout()
     return fig
 
@@ -702,7 +778,6 @@ def _build_stats_table(eeg_uV, ch_names) -> Table:
         d = eeg_uV[:, i]
         data.append([ch, f"{np.mean(d):.1f}", f"{np.std(d):.1f}",
                       f"{np.min(d):.1f}", f"{np.max(d):.1f}", f"{np.ptp(d):.1f}"])
-
     cw = CONTENT_W / 6
     col_widths = [cw * 1.2] + [cw] * 5
     return _ne_table(data, col_widths)
