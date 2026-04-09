@@ -54,13 +54,13 @@ def load_easy_file(file_path: str) -> Tuple[Optional[pd.DataFrame], Optional[np.
 
 
 def parse_info_file(file_path: str) -> dict:
-    """Parse a .info companion file and return metadata.
+    """Parse a .info companion file and return all available metadata.
 
     Args:
         file_path: Path to the .easy file (the .info path is derived from it).
 
     Returns:
-        dict with keys: electrodes, device, sampling_rate, duration_s, n_channels, n_samples
+        dict with recording metadata (electrodes, device, firmware, etc.)
     """
     info_path = file_path.replace(".easy.gz", ".info").replace(".easy", ".info")
     result = {
@@ -70,6 +70,17 @@ def parse_info_file(file_path: str) -> dict:
         "duration_s": None,
         "n_channels": None,
         "n_samples": None,
+        # Extended metadata
+        "step_name": "",
+        "device_id": "",
+        "software_version": "",
+        "firmware_version": "",
+        "communication_type": "",
+        "line_filter": "",
+        "packets_lost": 0,
+        "eeg_units": "nV",
+        "start_timestamp_ms": None,
+        "format": "easy",
     }
 
     if not os.path.isfile(info_path):
@@ -102,5 +113,27 @@ def parse_info_file(file_path: str) -> dict:
                     result["duration_s"] = float(line.split(":")[1].strip())
                 except (ValueError, IndexError):
                     pass
+            elif "Step name:" in line:
+                result["step_name"] = line.split(":", 1)[1].strip()
+            elif "StartDate" in line and "firstEEGtimestamp" in line:
+                try:
+                    result["start_timestamp_ms"] = int(line.split(":", 1)[1].strip())
+                except (ValueError, IndexError):
+                    pass
+            elif "Software's version:" in line:
+                result["software_version"] = line.split(":", 1)[1].strip()
+            elif "Firmware's version:" in line:
+                result["firmware_version"] = line.split(":", 1)[1].strip()
+            elif "Communication type:" in line:
+                result["communication_type"] = line.split(":", 1)[1].strip()
+            elif "Line filter status:" in line:
+                result["line_filter"] = line.split(":", 1)[1].strip()
+            elif "Number of packets lost:" in line:
+                try:
+                    result["packets_lost"] = int(line.split(":", 1)[1].strip())
+                except (ValueError, IndexError):
+                    pass
+            elif "EEG units:" in line:
+                result["eeg_units"] = line.split(":", 1)[1].strip()
 
     return result

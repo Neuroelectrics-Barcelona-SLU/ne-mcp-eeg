@@ -206,6 +206,7 @@ def generate_qc_report(
     output_path: Optional[str] = None,
     start_time_s: float = 0.0,
     duration_s: Optional[float] = None,
+    original_file_path: Optional[str] = None,
 ) -> str:
     analyzer = EasyAnalyzer(file_path)
     fs = analyzer.fs
@@ -215,8 +216,11 @@ def generate_qc_report(
     if duration_s is None:
         duration_s = total_dur - start_time_s
 
-    electrodes = _parse_electrodes(file_path, n_ch)
-    device = _parse_device(file_path)
+    meta = _get_recording_meta(file_path, original_file_path)
+    electrodes = meta.get("electrodes", [])
+    if not electrodes:
+        electrodes = [f"Ch{i+1}" for i in range(n_ch)]
+    electrodes = electrodes[:n_ch]
 
     results = analyzer.process_window(start_time_s, duration_s)
     qc_metrics = analyzer.calculate_channel_metrics(
@@ -247,17 +251,10 @@ def generate_qc_report(
             st["subtitle"]))
         story.append(_teal_hr())
 
-        story.append(Paragraph(f"FILE: {filename}", st["meta"]))
-        story.append(Paragraph(f"DEVICE: {device}", st["meta"]))
-        story.append(Paragraph(
-            f"CHANNELS: {n_ch} &nbsp;&nbsp;&nbsp; SAMPLING RATE: {int(fs)} Hz",
-            st["meta"]))
-        story.append(Paragraph(
-            f"DURATION: {total_dur:.1f} s &nbsp;&nbsp;&nbsp; "
-            f"WINDOW: {start_time_s:.1f} – {start_time_s + duration_s:.1f} s",
-            st["meta"]))
-        story.append(Paragraph(
-            f"DATE: {datetime.now().strftime('%B %d, %Y')}", st["meta"]))
+        win_dur = duration_s
+        story.extend(_build_meta_block(
+            meta, st, filename, n_ch, fs, total_dur,
+            start_time_s, duration_s, win_dur))
         story.append(_teal_hr())
 
         total_pass = sum(1 for m in qc_metrics.values() if m.get("pass", False))
@@ -397,7 +394,9 @@ def generate_analysis_report(
     output_path: Optional[str] = None,
     start_time_s: float = 0.0,
     duration_s: Optional[float] = None,
+    original_file_path: Optional[str] = None,
 ) -> str:
+    meta = _get_recording_meta(file_path, original_file_path)
     eeg_uV, triggers, timestamps, ch_names = _load_easy_raw(file_path)
     n_samples, n_ch = eeg_uV.shape
     fs = 500
@@ -441,17 +440,13 @@ def generate_analysis_report(
         st["subtitle"]))
     story.append(_teal_hr())
 
-    device = _parse_device(file_path)
-    story.append(Paragraph(f"FILE: {filename}", st["meta"]))
-    story.append(Paragraph(
-        f"DEVICE: {device} &nbsp;&nbsp;&nbsp; CHANNELS: {n_ch} &nbsp;&nbsp;&nbsp; "
-        f"SAMPLING RATE: {fs} Hz", st["meta"]))
-    story.append(Paragraph(
-        f"TOTAL DURATION: {total_dur:.1f} s &nbsp;&nbsp;&nbsp; "
-        f"ANALYSIS WINDOW: {start_time_s:.1f} – {start_time_s + duration_s:.1f} s "
-        f"({win_dur:.1f} s)", st["meta"]))
-    story.append(Paragraph(
-        f"DATE: {datetime.now().strftime('%B %d, %Y')}", st["meta"]))
+    # Use electrode labels from metadata if available (preserves original NEDF order)
+    if meta.get("electrodes") and len(meta["electrodes"]) == n_ch:
+        ch_names = meta["electrodes"]
+
+    story.extend(_build_meta_block(
+        meta, st, filename, n_ch, fs, total_dur,
+        start_time_s, duration_s, win_dur))
     story.append(_teal_hr())
 
     # 1. Raw EEG Preview (limited to _RAW_PREVIEW_MAX_S for readability)
@@ -468,10 +463,15 @@ def generate_analysis_report(
     fig_traces = _plot_raw_traces(eeg_preview, trig_preview, ch_names, fs, start_time_s)
     story.append(_fig_to_image(fig_traces, width_inches=6.0))
 
+    # Use trigger labels from metadata if available, fall back to defaults
+    trig_map = dict(TRIGGER_MAP)
+    if meta.get("trigger_labels"):
+        trig_map.update(meta["trigger_labels"])
+
     trig_indices = np.where(trig_win > 0)[0]
     if len(trig_indices) > 0:
         trig_text = ", ".join(
-            f"{TRIGGER_MAP.get(trig_win[i], f'T{trig_win[i]}')} @ "
+            f"{trig_map.get(trig_win[i], f'T{trig_win[i]}')} @ "
             f"{start_time_s + i/fs:.2f}s"
             for i in trig_indices[:20])
         story.append(Spacer(1, 4))
@@ -784,30 +784,143 @@ def _build_stats_table(eeg_uV, ch_names) -> Table:
 
 
 # ---------------------------------------------------------------------------
-# Shared helpers
+# Recording metadata extraction
 # ---------------------------------------------------------------------------
 
-def _parse_electrodes(file_path: str, n_ch: int) -> list[str]:
-    info_path = file_path.replace(".easy.gz", ".info").replace(".easy", ".info")
-    electrodes = []
-    if os.path.isfile(info_path):
-        with open(info_path) as f:
-            for line in f:
-                if "Channel " in line.rstrip():
-                    electrodes.append(line.split()[-1])
-    if not electrodes:
-        electrodes = [f"Ch{i+1}" for i in range(n_ch)]
-    return electrodes[:n_ch]
+def _get_recording_meta(easy_path: str, original_file_path: str | None = None) -> dict:
+    """Extract all available metadata from the recording.
+
+    If original_file_path points to a .nedf, reads the rich XML header.
+    Otherwise falls back to parsing the .info companion file.
+    """
+    orig = original_file_path or easy_path
+
+    if orig.endswith(".nedf") and os.path.isfile(orig):
+        from ne_eeg_server.readers.nedf import read_nedf
+        # Read header only — we just need metadata, not the full EEG data
+        # But read_nedf reads everything; use its return dict for metadata
+        try:
+            data = read_nedf(orig)
+            return {
+                "electrodes": data["electrodes"],
+                "device": data.get("device", "Unknown"),
+                "num_channels": data["num_channels"],
+                "sampling_rate": data["fs"],
+                "duration_s": data["duration_s"],
+                "start_date": data.get("start_date", ""),
+                "step_name": data.get("step_name", ""),
+                "device_id": data.get("device_id", ""),
+                "software_version": data.get("software_version", ""),
+                "firmware_version": data.get("firmware_version", ""),
+                "communication_type": data.get("communication_type", ""),
+                "line_filter": data.get("line_filter", ""),
+                "packets_lost": data.get("packets_lost", 0),
+                "eeg_units": data.get("eeg_units", "nV"),
+                "trigger_labels": data.get("trigger_labels", {}),
+                "format": "nedf",
+                "nedf_version": data.get("nedf_version", ""),
+            }
+        except Exception:
+            pass  # Fall through to .info parsing
+
+    # Parse .info file
+    from ne_eeg_server.readers.easy import parse_info_file
+    info = parse_info_file(easy_path)
+
+    # Derive start date from timestamp if available
+    start_date = ""
+    if info.get("start_timestamp_ms"):
+        import datetime
+        try:
+            start_date = datetime.datetime.fromtimestamp(
+                info["start_timestamp_ms"] / 1000.0
+            ).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+
+    return {
+        "electrodes": info.get("electrodes", []),
+        "device": info.get("device", "Unknown"),
+        "num_channels": info.get("n_channels"),
+        "sampling_rate": info.get("sampling_rate"),
+        "duration_s": info.get("duration_s"),
+        "start_date": start_date,
+        "step_name": info.get("step_name", ""),
+        "device_id": info.get("device_id", ""),
+        "software_version": info.get("software_version", ""),
+        "firmware_version": info.get("firmware_version", ""),
+        "communication_type": info.get("communication_type", ""),
+        "line_filter": info.get("line_filter", ""),
+        "packets_lost": info.get("packets_lost", 0),
+        "eeg_units": info.get("eeg_units", "nV"),
+        "trigger_labels": info.get("trigger_labels", {}),
+        "format": "easy",
+    }
 
 
-def _parse_device(file_path: str) -> str:
-    info_path = file_path.replace(".easy.gz", ".info").replace(".easy", ".info")
-    if os.path.isfile(info_path):
-        with open(info_path) as f:
-            for line in f:
-                if "Device class:" in line:
-                    return line.split(":", 1)[1].strip()
-    return "Unknown device"
+def _build_meta_block(meta: dict, st: dict, filename: str, n_ch: int,
+                      fs: float, total_dur: float, start_time_s: float,
+                      duration_s: float, win_dur: float) -> list:
+    """Build the metadata block for the title page of a report."""
+    items = []
+    items.append(Paragraph(f"FILE: {filename}", st["meta"]))
+
+    # Device line
+    device_parts = [f"DEVICE: {meta.get('device', 'Unknown')}"]
+    if meta.get("device_id"):
+        device_parts.append(f"ID: {meta['device_id']}")
+    items.append(Paragraph("&nbsp;&nbsp;&nbsp;".join(device_parts), st["meta"]))
+
+    # Recording details
+    items.append(Paragraph(
+        f"CHANNELS: {n_ch} &nbsp;&nbsp;&nbsp; SAMPLING RATE: {int(fs)} Hz "
+        f"&nbsp;&nbsp;&nbsp; FORMAT: {meta.get('format', 'unknown').upper()}"
+        + (f" v{meta['nedf_version']}" if meta.get("nedf_version") else ""),
+        st["meta"]))
+
+    items.append(Paragraph(
+        f"TOTAL DURATION: {total_dur:.1f} s &nbsp;&nbsp;&nbsp; "
+        f"ANALYSIS WINDOW: {start_time_s:.1f} – {start_time_s + duration_s:.1f} s "
+        f"({win_dur:.1f} s)", st["meta"]))
+
+    # Start date
+    if meta.get("start_date"):
+        items.append(Paragraph(f"RECORDING DATE: {meta['start_date']}", st["meta"]))
+
+    # Step name
+    if meta.get("step_name"):
+        items.append(Paragraph(f"STEP: {meta['step_name']}", st["meta"]))
+
+    # Software / firmware
+    sw_parts = []
+    if meta.get("software_version"):
+        sw_parts.append(f"SOFTWARE: {meta['software_version']}")
+    if meta.get("firmware_version"):
+        sw_parts.append(f"FIRMWARE: {meta['firmware_version']}")
+    if meta.get("communication_type"):
+        sw_parts.append(f"LINK: {meta['communication_type']}")
+    if sw_parts:
+        items.append(Paragraph("&nbsp;&nbsp;&nbsp;".join(sw_parts), st["meta"]))
+
+    # Filter / data quality
+    extra = []
+    if meta.get("line_filter") and meta["line_filter"] != "OFF":
+        extra.append(f"LINE FILTER: {meta['line_filter']}")
+    if meta.get("packets_lost", 0) > 0:
+        extra.append(f"PACKETS LOST: {meta['packets_lost']}")
+    if extra:
+        items.append(Paragraph("&nbsp;&nbsp;&nbsp;".join(extra), st["meta"]))
+
+    # Trigger labels
+    if meta.get("trigger_labels"):
+        labels_str = ", ".join(f"{code}={label}" for code, label in
+                               sorted(meta["trigger_labels"].items()))
+        items.append(Paragraph(f"TRIGGER LABELS: {labels_str}", st["meta"]))
+
+    items.append(Paragraph(
+        f"REPORT DATE: {datetime.now().strftime('%B %d, %Y')}", st["meta"]))
+
+    return items
 
 
 def _load_easy_raw(filepath: str):

@@ -400,7 +400,8 @@ def generate_qc_report(
 
     with tempfile.TemporaryDirectory(prefix="ne_eeg_") as tmpdir:
         easy_path, is_temp = prepare_easy_path(file_path, tmpdir)
-        pdf_path = _gen_qc(easy_path, output_path, start_time_s, duration_s)
+        pdf_path = _gen_qc(easy_path, output_path, start_time_s, duration_s,
+                           original_file_path=file_path)
 
     return {
         "report_type": "Signal Quality (QC)",
@@ -429,7 +430,8 @@ def generate_analysis_report(
 
     with tempfile.TemporaryDirectory(prefix="ne_eeg_") as tmpdir:
         easy_path, is_temp = prepare_easy_path(file_path, tmpdir)
-        pdf_path = _gen_analysis(easy_path, output_path, start_time_s, duration_s)
+        pdf_path = _gen_analysis(easy_path, output_path, start_time_s, duration_s,
+                                 original_file_path=file_path)
 
     return {
         "report_type": "EEG Analysis",

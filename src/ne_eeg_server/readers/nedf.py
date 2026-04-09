@@ -173,6 +173,21 @@ def read_nedf(filepath: str) -> dict:
 
     start_date = datetime.datetime.fromtimestamp(start_ts / 1000.0).strftime("%Y-%m-%d %H:%M:%S")
 
+    # Extract extended metadata from header
+    step_details = xmldict.get("StepDetails", {}) if version == "1.4" else {}
+    eeg_settings = xmldict.get("EEGSettings", xmldict) if version == "1.4" else xmldict
+
+    # Trigger label mapping (e.g., Trigger1=EO, Trigger2=EC)
+    trigger_labels = {}
+    trig_info = xmldict.get("TriggerInformation", {})
+    if isinstance(trig_info, dict):
+        for k, v in trig_info.items():
+            if k.startswith("Trigger") and v:
+                try:
+                    trigger_labels[int(k[7:])] = str(v)
+                except (ValueError, TypeError):
+                    pass
+
     return {
         "eeg_uV": np.array(eeg_data, dtype="float32"),
         "markers": np.array(markers, dtype="int64"),
@@ -183,4 +198,16 @@ def read_nedf(filepath: str) -> dict:
         "start_date": start_date,
         "start_date_unix_ms": start_ts,
         "duration_s": duration_s,
+        # Extended metadata
+        "step_name": step_details.get("StepName", ""),
+        "device_id": step_details.get("DeviceID", ""),
+        "software_version": step_details.get("SoftwareVersion", ""),
+        "firmware_version": step_details.get("FirmwareVersion", ""),
+        "communication_type": step_details.get("CommunicationType", ""),
+        "line_filter": eeg_settings.get("LineFilterStatus", ""),
+        "packets_lost": int(eeg_settings.get("NumberOfPacketsLost", 0) or 0),
+        "eeg_units": eeg_settings.get("EEGUnits", "nV"),
+        "trigger_labels": trigger_labels,
+        "format": "nedf",
+        "nedf_version": version,
     }
