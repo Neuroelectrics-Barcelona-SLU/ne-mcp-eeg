@@ -466,17 +466,16 @@ def generate_analysis_report(
         preview_label = "1. Raw EEG Traces"
     story.append(Paragraph(preview_label, st["heading"]))
     fig_traces = _plot_raw_traces(eeg_preview, trig_preview, ch_names, fs, start_time_s)
-    story.append(_fig_to_image(fig_traces, width_inches=6.0))
-    story.append(Paragraph(
-        f"Figure 1: Demeaned EEG traces ({n_ch} channels, {preview_dur:.0f} s). "
-        f"Vertical scale bar indicates amplitude in µV. "
-        f"Dashed lines mark event triggers.",
-        st["caption"]))
 
-    # Use trigger labels from metadata if available, fall back to defaults
+    # Build caption with markers and note combined to avoid orphaned text
     trig_map = dict(TRIGGER_MAP)
     if meta.get("trigger_labels"):
         trig_map.update(meta["trigger_labels"])
+
+    caption_parts = [
+        f"Figure 1: Demeaned EEG traces ({n_ch} channels, {preview_dur:.0f} s). "
+        f"Vertical scale bar shows amplitude in µV. Dashed lines mark event triggers."
+    ]
 
     trig_indices = np.where(trig_win > 0)[0]
     if len(trig_indices) > 0:
@@ -484,15 +483,15 @@ def generate_analysis_report(
             f"{trig_map.get(trig_win[i], f'T{trig_win[i]}')} @ "
             f"{start_time_s + i/fs:.2f}s"
             for i in trig_indices[:20])
-        story.append(Spacer(1, 4))
-        story.append(Paragraph(f"Markers detected: {trig_text}", st["small"]))
+        caption_parts.append(f"Markers: {trig_text}.")
 
     if preview_dur < win_dur:
-        story.append(Spacer(1, 4))
-        story.append(Paragraph(
-            f"<i>Note: Raw trace shows the first {preview_dur:.0f} s for readability. "
-            f"All spectral analyses below use the full {win_dur:.0f} s window.</i>",
-            st["small"]))
+        caption_parts.append(
+            f"Note: trace shows the first {preview_dur:.0f} s for readability; "
+            f"all spectral analyses use the full {win_dur:.0f} s window.")
+
+    story.append(_fig_to_image(fig_traces, width_inches=6.0))
+    story.append(Paragraph(" ".join(caption_parts), st["caption"]))
 
     # ======= PSD Grid — paginated, 8 channels per page =======
     channels_all = list(range(n_ch))
@@ -524,17 +523,14 @@ def generate_analysis_report(
     story.append(PageBreak())
     story.append(Paragraph("3. Spectral Overview", st["heading"]))
     story.append(Paragraph(
-        f"Band power distribution across all {n_ch} channels. "
-        f"Values are log10(mean PSD) in each standard frequency band, "
-        f"computed over the full {win_dur:.1f} s analysis window.",
+        f"Figure 3: Band power heatmap across all {n_ch} channels. "
+        f"Color scale shows log10(mean PSD) in each standard frequency band "
+        f"(Delta 1–4, Theta 4–8, Alpha 8–13, Beta 13–30, Gamma 30–45 Hz), "
+        f"computed over the full {win_dur:.1f} s analysis window. "
+        f"Warmer colors indicate higher power.",
         st["body"]))
     fig_heatmap = _plot_band_heatmap(ch_names, psd_cache)
     story.append(_fig_to_image(fig_heatmap, width_inches=5.5))
-    story.append(Paragraph(
-        f"Figure 3: Band power heatmap across all {n_ch} channels. "
-        f"Color scale shows log10(mean PSD) in each frequency band. "
-        f"Warmer colors indicate higher power.",
-        st["caption"]))
 
     # ======= Alpha Analysis =======
     story.append(PageBreak())
