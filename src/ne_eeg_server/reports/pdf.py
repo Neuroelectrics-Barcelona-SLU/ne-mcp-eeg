@@ -146,7 +146,7 @@ def _header_footer(canvas, doc, report_type: str, date_str: str, filename: str):
 # Figure / image helpers
 # ---------------------------------------------------------------------------
 
-def _fig_to_image(fig, width_inches=6.0, dpi=150) -> Image:
+def _fig_to_image(fig, width_inches=6.0, dpi=150, max_height_inches=8.5) -> Image:
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight", facecolor="white")
     plt.close(fig)
@@ -154,7 +154,12 @@ def _fig_to_image(fig, width_inches=6.0, dpi=150) -> Image:
     from PIL import Image as PILImage
     px_w, px_h = PILImage.open(buf).size
     buf.seek(0)
-    return Image(buf, width=width_inches * inch, height=width_inches * (px_h / px_w) * inch)
+    aspect = px_h / px_w
+    img_h = width_inches * aspect
+    if img_h > max_height_inches:
+        img_h = max_height_inches
+        width_inches = max_height_inches / aspect
+    return Image(buf, width=width_inches * inch, height=img_h * inch)
 
 
 def _img_from_path(path: str, width_inches: float = 6.0) -> Image:
@@ -621,7 +626,7 @@ def _plot_raw_traces(eeg_uV, triggers, ch_names, fs, t_offset=0.0):
     # Demean each channel so traces sit on their baseline
     eeg_dm = eeg_uV - np.mean(eeg_uV, axis=0, keepdims=True)
 
-    fig, ax = plt.subplots(figsize=(10, max(3, n_ch * 0.5)))
+    fig, ax = plt.subplots(figsize=(10, min(max(3, n_ch * 0.5), 10)))
     spacing = np.max(np.std(eeg_dm, axis=0)) * 5
     if spacing == 0:
         spacing = 1.0
