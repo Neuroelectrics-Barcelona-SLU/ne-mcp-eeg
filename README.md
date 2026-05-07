@@ -33,6 +33,12 @@ Connect [Neuroelectrics](https://www.neuroelectrics.com) EEG recordings to AI ag
 ## Quick Start
 
 ```bash
+pip install ne-eeg-server
+```
+
+Or, to install from source:
+
+```bash
 git clone https://github.com/giulioruffini/ne-mcp-eeg.git
 cd ne-mcp-eeg
 python3 -m venv .venv
