@@ -81,7 +81,7 @@ Point to the Python binary **inside your virtual environment** so Claude Desktop
 }
 ```
 
-> **Tip:** Run `which python` with the venv activated to get the exact path.
+> **Tip:** Run `which python` (macOS/Linux) or `(Get-Command python).Source` (Windows PowerShell) with the venv activated to get the exact path.
 
 Restart Claude Desktop after editing the config. The six EEG analysis tools will appear in the tool picker.
 
