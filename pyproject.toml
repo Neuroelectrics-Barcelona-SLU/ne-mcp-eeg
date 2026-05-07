@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "ne-eeg-server"
+name = "ne-mcp-eeg"
 version = "0.1.0"
 description = "MCP server for EEG analysis with Neuroelectrics data formats"
 readme = "README.md"

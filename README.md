@@ -33,7 +33,7 @@ Connect [Neuroelectrics](https://www.neuroelectrics.com) EEG recordings to AI ag
 ## Quick Start
 
 ```bash
-pip install ne-eeg-server
+pip install ne-mcp-eeg
 ```
 
 Or, to install from source:
