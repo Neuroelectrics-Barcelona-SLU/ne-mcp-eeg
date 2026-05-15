@@ -31,6 +31,7 @@ dependencies = [
     "pandas",
     "reportlab",
     "pyedflib",
+    "Pillow",
     "pydantic>=2.0",
 ]
 
