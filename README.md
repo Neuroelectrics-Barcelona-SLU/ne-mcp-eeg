@@ -18,6 +18,7 @@ Connect [Neuroelectrics](https://www.neuroelectrics.com) EEG recordings to AI ag
 
 ## Table of Contents
 
+- [Requirements](#requirements)
 - [Quick Start](#quick-start)
 - [Connect to AI Assistants](#connect-to-ai-assistants)
 - [Example Conversations](#example-conversations)
@@ -27,6 +28,43 @@ Connect [Neuroelectrics](https://www.neuroelectrics.com) EEG recordings to AI ag
 - [Development](#development)
 - [About Neuroelectrics](#about-neuroelectrics)
 - [License](#license)
+
+---
+
+## Requirements
+
+**Python 3.10 or later** is required.
+
+### macOS
+
+Python 3 is pre-installed on macOS Ventura (13) and later. Verify your version:
+
+```bash
+python3 --version
+```
+
+If the output is `Python 3.10` or higher, you are ready — no installation needed.  
+If your version is older, update via [Homebrew](https://brew.sh):
+
+```bash
+brew install python
+```
+
+### Windows
+
+Windows does not include Python by default. Download and install it from:
+
+**[https://www.python.org/downloads/windows/](https://www.python.org/downloads/windows/)**
+
+> **Important:** During installation, check **"Add python.exe to PATH"** before clicking Install Now.
+
+After installation, verify in PowerShell or Command Prompt:
+
+```powershell
+python --version
+```
+
+The output should show `Python 3.10` or higher.
 
 ---
 
