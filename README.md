@@ -56,7 +56,8 @@ Windows does not include Python by default. Download and install it from:
 
 **[https://www.python.org/downloads/windows/](https://www.python.org/downloads/windows/)**
 
-> **Important:** During installation, check **"Add python.exe to PATH"** before clicking Install Now.
+> **No admin rights required:** when the installer asks, choose **"Install just for me"** (the default). This installs Python under your user profile and does not require administrator privileges.  
+> **Important:** also check **"Add python.exe to PATH"** before clicking Install Now.
 
 After installation, verify in PowerShell or Command Prompt:
 
