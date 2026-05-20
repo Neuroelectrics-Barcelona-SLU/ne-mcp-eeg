@@ -299,6 +299,7 @@ The MCP server runs as your local user process. Files must be accessible from yo
 - Always pass the **full absolute path** to Claude, e.g.:
   - macOS: `/Users/yourname/Documents/recording.nedf`
   - Windows: `C:\Users\yourname\Documents\recording.nedf`
+- **Tip:** adding the file to a Claude Code project folder (via the Cowork feature) is the most reliable way to make it accessible to the MCP server.
 
 ### Tools not appearing in Claude Desktop
 
