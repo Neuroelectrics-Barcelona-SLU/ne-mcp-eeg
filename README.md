@@ -25,6 +25,7 @@ Connect [Neuroelectrics](https://www.neuroelectrics.com) EEG recordings to AI ag
 - [Tool Reference](#tool-reference)
 - [Architecture](#architecture)
 - [Reference Scripts](#reference-scripts)
+- [Troubleshooting](#troubleshooting)
 - [Development](#development)
 - [About Neuroelectrics](#about-neuroelectrics)
 - [License](#license)
@@ -276,6 +277,38 @@ python band_power.py
 ```
 
 Includes a synthetic 8-channel, 10-second demo recording (`sample_data/demo_recording.easy`) with alpha rhythm in occipital channels and frontal theta.
+
+---
+
+## Troubleshooting
+
+### "Cannot access file" / sandbox limitation
+
+**This server requires Claude Desktop or Claude Code — it does not work from the Claude.ai web chat.**
+
+The Claude.ai browser interface sandboxes MCP file access and cannot read arbitrary files on your disk. Always use this server through:
+- [Claude Desktop](https://claude.ai/download) (recommended for most users)
+- Claude Code CLI (`claude` command in a terminal)
+
+### File not found on mounted or network drives
+
+The MCP server runs as your local user process. Files must be accessible from your user account:
+
+- Use **local folders** (`Documents`, `Desktop`, home directory) — not network shares or external drives
+- On **macOS**, if a file is on an external or network volume, copy it locally first
+- Always pass the **full absolute path** to Claude, e.g.:
+  - macOS: `/Users/yourname/Documents/recording.nedf`
+  - Windows: `C:\Users\yourname\Documents\recording.nedf`
+
+### Tools not appearing in Claude Desktop
+
+1. Check the config file path and JSON syntax (missing comma, wrong backslashes on Windows)
+2. Make sure the Python path in the config points to the venv, not the system Python
+3. Restart Claude Desktop after any config change
+
+### EDF file fails to load
+
+The built-in fallback parser handles most non-compliant EDF files automatically (e.g. files from BrainProducts, BioSemi, g.tec). If loading still fails, check that the file is a valid EDF/EDF+ file and not corrupted.
 
 ---
 
