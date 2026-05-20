@@ -53,22 +53,26 @@ brew install python
 
 ### Windows
 
-Windows does not include Python by default. Download and install it from:
+Windows does not include Python by default. The easiest way to install it is via **winget** (available on Windows 10/11 — no admin rights required). Open PowerShell and run:
 
-**[https://www.python.org/downloads/release/python-3128/](https://www.python.org/downloads/release/python-3128/)** ← Python 3.12.8 (recommended for Windows)
+```powershell
+winget install Python.Python.3.12
+```
 
-> **Recommended: use Python 3.12.** Some optional dependencies do not yet provide pre-built packages for Python 3.13 on Windows and would require C++ compiler tools to install. Python 3.12 avoids this entirely.
-
-> **No admin rights required:** when the installer asks, choose **"Install just for me"** (the default). This installs Python under your user profile and does not require administrator privileges.  
-> **Important:** also check **"Add python.exe to PATH"** before clicking Install Now.
-
-After installation, verify in PowerShell or Command Prompt:
+Then close and reopen PowerShell and verify:
 
 ```powershell
 python --version
 ```
 
-The output should show `Python 3.10` or higher.
+The output should show `Python 3.12.x`.
+
+> **Why 3.12?** Some optional dependencies do not yet provide pre-built packages for Python 3.13 on Windows. Python 3.12 avoids build errors entirely.
+
+If `winget` is not available on your system, download the installer manually:  
+**[https://www.python.org/downloads/release/python-3128/](https://www.python.org/downloads/release/python-3128/)** ← Python 3.12.8
+
+> **No admin rights required:** choose **"Install just for me"** (the default) and check **"Add python.exe to PATH"** before clicking Install Now.
 
 ---
 
@@ -110,20 +114,51 @@ Add to your Claude Desktop configuration file:
 | macOS    | `~/Library/Application Support/Claude/claude_desktop_config.json` |
 | Windows  | `%APPDATA%\Claude\claude_desktop_config.json` |
 
-Point to the Python binary **inside your virtual environment** so Claude Desktop can launch it without activating the venv:
+Point to the Python binary **inside your virtual environment** so Claude Desktop can launch it without activating the venv.
 
+**macOS / Linux:**
 ```json
 {
   "mcpServers": {
     "ne-mcp-eeg": {
-      "command": "/absolute/path/to/ne-mcp-eeg/.venv/bin/python",
+      "command": "/Users/yourname/ne-mcp-eeg/.venv/bin/python",
       "args": ["-m", "ne_eeg_server.server"]
     }
   }
 }
 ```
 
-> **Tip:** Run `which python` (macOS/Linux) or `(Get-Command python).Source` (Windows PowerShell) with the venv activated to get the exact path.
+**Windows** (use double backslashes `\\` in JSON):
+```json
+{
+  "mcpServers": {
+    "ne-mcp-eeg": {
+      "command": "C:\\Users\\yourname\\ne-mcp-eeg\\.venv\\Scripts\\python.exe",
+      "args": ["-m", "ne_eeg_server.server"]
+    }
+  }
+}
+```
+
+> **Find your exact Python path:**
+> - macOS: run `which python` in Terminal with the venv activated
+> - Windows: run `(Get-Command python).Source` in PowerShell with the venv activated
+
+> **If you already have other MCP servers configured**, add a comma after the closing `}` of the last existing entry before adding `ne-mcp-eeg`. The file must be valid JSON:
+> ```json
+> {
+>   "mcpServers": {
+>     "other-server": {
+>       "command": "...",
+>       "args": []
+>     },
+>     "ne-mcp-eeg": {
+>       "command": "C:\\Users\\yourname\\ne-mcp-eeg\\.venv\\Scripts\\python.exe",
+>       "args": ["-m", "ne_eeg_server.server"]
+>     }
+>   }
+> }
+> ```
 
 Restart Claude Desktop after editing the config. The six EEG analysis tools will appear in the tool picker.
 
