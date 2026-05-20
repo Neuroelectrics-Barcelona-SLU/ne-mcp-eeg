@@ -56,6 +56,8 @@ Windows does not include Python by default. Download and install it from:
 
 **[https://www.python.org/downloads/windows/](https://www.python.org/downloads/windows/)**
 
+> **Recommended: use Python 3.12.** Some optional dependencies do not yet provide pre-built packages for Python 3.13 on Windows and would require C++ compiler tools to install. Python 3.12 avoids this entirely.
+
 > **No admin rights required:** when the installer asks, choose **"Install just for me"** (the default). This installs Python under your user profile and does not require administrator privileges.  
 > **Important:** also check **"Add python.exe to PATH"** before clicking Install Now.
 
