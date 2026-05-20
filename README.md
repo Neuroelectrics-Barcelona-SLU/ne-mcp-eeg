@@ -54,7 +54,7 @@ brew install python
 
 Windows does not include Python by default. Download and install it from:
 
-**[https://www.python.org/downloads/windows/](https://www.python.org/downloads/windows/)**
+**[https://www.python.org/downloads/release/python-3128/](https://www.python.org/downloads/release/python-3128/)** ← Python 3.12.8 (recommended for Windows)
 
 > **Recommended: use Python 3.12.** Some optional dependencies do not yet provide pre-built packages for Python 3.13 on Windows and would require C++ compiler tools to install. Python 3.12 avoids this entirely.
 
