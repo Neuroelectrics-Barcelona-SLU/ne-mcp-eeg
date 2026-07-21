@@ -92,14 +92,7 @@ source .venv/bin/activate   # On Windows: .venv\Scripts\activate
 pip install -e .
 ```
 
-Run the server:
-
-```bash
-ne-eeg-server
-# or: python -m ne_eeg_server.server
-```
-
-The server communicates over **stdio** by default (the standard transport for Claude Desktop). For web-based agents, **SSE transport** is also available — see [Connect to AI Assistants](#connect-to-ai-assistants).
+The server communicates over **stdio** and must be launched by an AI assistant — do not run `ne-eeg-server` directly in a terminal, as it will throw a JSON parse error (it expects MCP messages on stdin, not interactive input). See [Connect to AI Assistants](#connect-to-ai-assistants) to set it up.
 
 ---
 
@@ -141,8 +134,10 @@ Point to the Python binary **inside your virtual environment** so Claude Desktop
 ```
 
 > **Find your exact Python path:**
-> - macOS: run `which python` in Terminal with the venv activated
-> - Windows: run `(Get-Command python).Source` in PowerShell with the venv activated
+> - macOS/Linux: run `which python` in Terminal
+> - Windows: run `(Get-Command python).Path` in PowerShell
+>
+> No need to activate the venv first.
 
 > **If you already have other MCP servers configured**, add a comma after the closing `}` of the last existing entry before adding `ne-mcp-eeg`. The file must be valid JSON:
 > ```json
