@@ -85,7 +85,7 @@ pip install ne-mcp-eeg
 Or, to install from source:
 
 ```bash
-git clone https://github.com/giulioruffini/ne-mcp-eeg.git
+git clone https://github.com/Neuroelectrics-Barcelona-SLU/ne-mcp-eeg.git
 cd ne-mcp-eeg
 python3 -m venv .venv
 source .venv/bin/activate   # On Windows: .venv\Scripts\activate

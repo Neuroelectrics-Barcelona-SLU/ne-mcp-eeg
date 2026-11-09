@@ -1,0 +1,12 @@
+{
+  "python": "3.14.7",
+  "numpy": "2.4.4",
+  "scipy": "1.17.1",
+  "source_sha256": {
+    "ambulatory_metrics.py": "640693bf1ad10c224acec3740f2a729713173472ee169b2eecc37aaf25c82418",
+    "ambulatory_classify.py": "bdb5034fdf7da96c6c72c5c81bf69d8ecab609147a44743b989b8c0be7bb6fae",
+    "bench.py": "0658ae309ad90ff828259a6116487984ccbdae3472083fd2bbbe4d85e312283f",
+    "peaks.py": "16374d685fc01d6461570e4169b5bb1893466e95b7e32e83a163719355dd70e2",
+    "synthetic.py": "13d438c02cbb0e21a38e293aec21a088825cf048603366a8627acde8eeb671f5"
+  }
+}

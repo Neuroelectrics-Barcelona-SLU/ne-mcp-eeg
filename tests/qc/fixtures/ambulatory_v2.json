@@ -1,0 +1,83 @@
+{
+  "ch1__m__metrics_version": 2,
+  "ch1__m__epoch_s": 10,
+  "ch1__m__ne": 3,
+  "ch1__m__nch": 1,
+  "ch1__m__fs": 500,
+  "ch1__m__reference_rule": {
+    "sat_max": 0.01,
+    "flat_frac_max": 0.5,
+    "constant_run_max_s": 1.0,
+    "rms_min_uV": 2.0,
+    "minimum_channels": 4
+  },
+  "ch1__m__total_samples": 15017,
+  "ch1__m__analyzed_samples": 15000,
+  "ch1__m__excluded_tail_samples": 17,
+  "ch1__r__acc_base": NaN,
+  "ch1__r__motion_available": false,
+  "ch1__b__block_s": 20,
+  "ch1__b__per": 2,
+  "ch1__b__nb": 2,
+  "ch1__segments": [
+    [
+      0,
+      3,
+      "SIGNAL"
+    ]
+  ],
+  "ch8__m__metrics_version": 2,
+  "ch8__m__epoch_s": 10,
+  "ch8__m__ne": 3,
+  "ch8__m__nch": 8,
+  "ch8__m__fs": 500,
+  "ch8__m__reference_rule": {
+    "sat_max": 0.01,
+    "flat_frac_max": 0.5,
+    "constant_run_max_s": 1.0,
+    "rms_min_uV": 2.0,
+    "minimum_channels": 4
+  },
+  "ch8__m__total_samples": 15017,
+  "ch8__m__analyzed_samples": 15000,
+  "ch8__m__excluded_tail_samples": 17,
+  "ch8__r__acc_base": 250.00000000000003,
+  "ch8__r__motion_available": true,
+  "ch8__b__block_s": 20,
+  "ch8__b__per": 2,
+  "ch8__b__nb": 2,
+  "ch8__segments": [
+    [
+      0,
+      3,
+      "SIGNAL"
+    ]
+  ],
+  "ch32__m__metrics_version": 2,
+  "ch32__m__epoch_s": 10,
+  "ch32__m__ne": 3,
+  "ch32__m__nch": 32,
+  "ch32__m__fs": 500,
+  "ch32__m__reference_rule": {
+    "sat_max": 0.01,
+    "flat_frac_max": 0.5,
+    "constant_run_max_s": 1.0,
+    "rms_min_uV": 2.0,
+    "minimum_channels": 4
+  },
+  "ch32__m__total_samples": 15017,
+  "ch32__m__analyzed_samples": 15000,
+  "ch32__m__excluded_tail_samples": 17,
+  "ch32__r__acc_base": NaN,
+  "ch32__r__motion_available": false,
+  "ch32__b__block_s": 20,
+  "ch32__b__per": 2,
+  "ch32__b__nb": 2,
+  "ch32__segments": [
+    [
+      0,
+      3,
+      "SIGNAL"
+    ]
+  ]
+}
