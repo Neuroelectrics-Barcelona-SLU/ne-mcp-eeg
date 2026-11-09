@@ -24,6 +24,7 @@ Connect [Neuroelectrics](https://www.neuroelectrics.com) EEG recordings to AI ag
 - [Example Conversations](#example-conversations)
 - [Tool Reference](#tool-reference)
 - [Architecture](#architecture)
+- [Shared QC Core](#shared-qc-core)
 - [Reference Scripts](#reference-scripts)
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
@@ -286,6 +287,20 @@ A channel **fails** if any metric exceeds its threshold.
 The server operates entirely locally. EEG files never leave the machine — all signal processing (1–40 Hz bandpass, 50/60 Hz notch, Welch PSD, QC metrics) runs in-process using NumPy and SciPy.
 
 ---
+
+## Shared QC Core
+
+Version 0.2.0 provides `ne_eeg_server.qc` for use from Python without importing
+MCP or report code. It includes a strict, cached `.easy` reader, epoch metrics,
+the ambulatory artifact screen, interval aggregation, and shared report labels.
+The existing bench API and its numerical behavior are preserved through an adapter.
+Optional spectral prominence and amplitude-event diagnostics do not change
+classifications. Thresholds are provisional; passing the screen does not establish
+that physiological EEG is present.
+
+See [the QC API contract](docs/qc-core.md) for units, configuration, examples,
+compatibility guarantees, and reference tests. The `bench` and `ambulatory`
+presets apply to different calculation paths and cannot be interchanged.
 
 ## Reference Scripts
 

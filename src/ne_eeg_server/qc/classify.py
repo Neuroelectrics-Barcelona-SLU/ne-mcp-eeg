@@ -1,7 +1,7 @@
 """Failure-mode classes for channel-epochs, segments and blocks."""
 from __future__ import annotations
 import numpy as np
-from .metrics import reference_candidates, REFERENCE_RULE
+from .metrics import reference_candidates, reference_rule, REFERENCE_RULE
 from .presets import THR, resolve_thresholds
 from .labels import CLS, CODE, COL, GROUPS, SEQ_GREENS, LABEL, DISCLAIMER, DEFN, definitions
 
@@ -19,7 +19,7 @@ def classify(M: dict, thr: dict = THR) -> dict:
     motion_available = bool(np.isfinite(acc_base) and acc_base > 0)
     motion_ep = (M["acc_1s_max"] > thr["motion_acc_rel"] * acc_base) if motion_available else np.zeros(ne, bool)
     peers = reference_candidates(M)
-    relative_available = peers.sum(axis=1) >= REFERENCE_RULE["minimum_channels"]
+    relative_available = peers.sum(axis=1) >= reference_rule(M)["minimum_channels"]
     cm_ep = relative_available & (M["corr_med"] >= thr["cm_corr"]) & (M["cm_rms"] >= thr["cm_rms"])
     med_resid = np.full((ne, 1), np.nan); med_hum = np.full((ne, 1), np.nan)
     for i in np.flatnonzero(relative_available):
