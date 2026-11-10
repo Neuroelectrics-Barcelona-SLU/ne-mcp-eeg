@@ -11,12 +11,13 @@ def test_server_exists():
 def test_tool_definitions():
     from ne_eeg_server.server import TOOL_DEFINITIONS
 
-    assert len(TOOL_DEFINITIONS) == 6
+    assert len(TOOL_DEFINITIONS) == 7
 
     tool_names = {t.name for t in TOOL_DEFINITIONS}
     expected = {
         "file_info", "list_events", "signal_quality",
         "analyze_eeg", "generate_qc_report", "generate_analysis_report",
+        "long_recording_qc",
     }
     assert tool_names == expected
 

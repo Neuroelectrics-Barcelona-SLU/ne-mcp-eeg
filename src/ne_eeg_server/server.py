@@ -41,7 +41,7 @@ no stimulation, no device management.
 professional. Present the data and note patterns, but do not make clinical diagnoses.
 6. If a tool returns an error, say so clearly — do not fill in plausible-sounding values.
 
-AVAILABLE TOOLS (6 total):
+AVAILABLE TOOLS (7 total):
 
 1. file_info — Extract metadata from any supported EEG file: format, channels, sample \
 rate, duration, device, file size.
@@ -64,8 +64,17 @@ Returns JSON + inline PSD plot.
 6. generate_analysis_report — Generate a branded PDF spectral/functional analysis report.
    Example: "Create an analysis report for /path/to/recording.easy"
 
-All tools accept: file_path (required), start_time_s and duration_s (optional time window).
+7. long_recording_qc — Artifact screen of a whole long (hours) .easy recording: one of eleven \
+classes per channel and 30-s epoch, usable percentages overall, per block and per channel, \
+SIGNAL / DRIFT/SAT / OPEN segments, channels at the rail. Returns JSON; takes minutes for an \
+overnight file. Class names are interpretive names for signal patterns, not verified \
+diagnoses; report the disclaimer the tool returns.
+   Example: "Screen the overnight recording /path/to/night.easy for usable data"
+
+Tools 1-6 accept: file_path (required), start_time_s and duration_s (optional time window).
 Tools 3 and 4 also accept: channels (optional list of 10-20 labels to filter).
+Tool 7 screens the whole recording in epochs and takes epoch_s, block_s, thresholds, \
+diagnostics and cache_dir instead of a time window.
 """
 
 server = Server(
@@ -251,6 +260,52 @@ TOOL_DEFINITIONS: list[Tool] = [
             "required": ["file_path"],
         },
     ),
+    Tool(
+        name="long_recording_qc",
+        description=(
+            "Artifact screen for a long (hours) .easy recording. Every channel-epoch receives one of "
+            "eleven classes: saturated at rail, digital flatline, open input, drift, common-mode "
+            "dominated (CMS/DRL), bad channel, motion artifact, HF/EMG noise, hum above 50 uV, usable "
+            "with hum 10-50 uV, clean. Returns usable percentages overall, per block and per channel, "
+            "SIGNAL / DRIFT/SAT / OPEN segments, channels at the rail, thresholds and a disclaimer: "
+            "class names are interpretive names for signal patterns, not verified diagnoses, and the "
+            "thresholds are provisional. Takes minutes for an overnight file. Returns JSON."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Absolute path to an uncompressed .easy file; its .info file must be beside it.",
+                },
+                "epoch_s": {
+                    "type": "number",
+                    "description": "Epoch length in seconds, at least 10. Default: 30.",
+                    "default": 30,
+                },
+                "block_s": {
+                    "type": "number",
+                    "description": "Block length in seconds, an integer multiple of epoch_s. Default: 600.",
+                    "default": 600,
+                },
+                "thresholds": {
+                    "type": "object",
+                    "additionalProperties": {"type": "number"},
+                    "description": "Overrides of the ambulatory thresholds by key, for example {\"hum_severe\": 40}. Default: the ambulatory preset.",
+                },
+                "diagnostics": {
+                    "type": "boolean",
+                    "description": "Also compute PSD-peak and amplitude-excursion diagnostics; they enter no class decision. Default: false.",
+                    "default": False,
+                },
+                "cache_dir": {
+                    "type": "string",
+                    "description": "Folder for a parsed .npy copy of the recording, reused by later calls. Default: no cache.",
+                },
+            },
+            "required": ["file_path"],
+        },
+    ),
 ]
 
 
@@ -274,6 +329,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any] | None) -> list[
         "analyze_eeg": lambda: tools.analyze_eeg(**arguments),
         "generate_qc_report": lambda: tools.generate_qc_report(**arguments),
         "generate_analysis_report": lambda: tools.generate_analysis_report(**arguments),
+        "long_recording_qc": lambda: tools.long_recording_qc(**arguments),
     }
 
     handler = dispatch.get(name)

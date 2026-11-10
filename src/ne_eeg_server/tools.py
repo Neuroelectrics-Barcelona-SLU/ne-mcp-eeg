@@ -1,7 +1,7 @@
 """
 Tool implementations for the ne-eeg-server MCP server.
 
-Six tools for local EEG file analysis — no cloud, no patients, no stimulation.
+Seven tools for local EEG file analysis — no cloud, no patients, no stimulation.
 """
 
 from __future__ import annotations
@@ -439,3 +439,133 @@ def generate_analysis_report(
         "pdf_path": pdf_path,
         "message": f"Analysis report saved to {pdf_path}",
     }
+
+# ---------------------------------------------------------------------------
+# 7. long_recording_qc
+# ---------------------------------------------------------------------------
+
+def long_recording_qc(
+    file_path: str,
+    epoch_s: float = 30.0,
+    block_s: float = 600.0,
+    thresholds: dict[str, float] | None = None,
+    diagnostics: bool = False,
+    cache_dir: str | None = None,
+) -> dict[str, Any]:
+    """Ambulatory artifact screen of a whole long .easy recording with the shared qc core.
+
+    Every complete epoch of every channel receives one of the eleven classes; the result
+    reports usable percentages overall, per block and per channel, the state segments and
+    the channels at the rail. Class names are interpretive; the disclaimer is included.
+    """
+    from ne_eeg_server.qc import classify, load, metrics
+    from ne_eeg_server.qc.config import DiagnosticsConfig
+    from ne_eeg_server.qc.labels import CLS, CODE, DISCLAIMER, LABEL
+
+    logger.info("long_recording_qc: path=%s epoch_s=%s block_s=%s", file_path, epoch_s, block_s)
+    if not file_path.endswith(".easy"):
+        raise ValueError(
+            "long_recording_qc reads an uncompressed .easy file with its .info beside it; "
+            "other formats are not supported yet"
+        )
+    if not os.path.isfile(file_path):
+        raise ValueError(f"File not found: {file_path}")
+    if not os.path.isfile(load.info_path_for(file_path)):
+        raise ValueError(f".info file not found beside {file_path}")
+
+    rec = load.read_easy(file_path, cache_dir)
+    M = metrics.compute(
+        rec["eeg"], rec["acc"], rec["fs"], epoch_s, log=None,
+        diagnostics=DiagnosticsConfig() if diagnostics else None,
+    )
+    thr = classify.resolve_thresholds(thresholds)
+    R = classify.classify(M, thr)
+    S = classify.segments(R["c"])
+    B = classify.blocks(R["c"], R, M, block_s)
+    railed, outliers = classify.channel_verdicts(R["c"], S)
+    labels = load.channel_names(rec["info"], M["nch"])
+    c = R["c"]
+    ne, nch = c.shape
+
+    per_channel = {}
+    for ch in range(nch):
+        counts = np.bincount(c[:, ch], minlength=len(CLS))
+        per_channel[labels[ch]] = {
+            "screen_pass_pct": round(100 * float(R["screen_pass"][:, ch].mean()), 2),
+            "dominant_class": CLS[int(counts.argmax())],
+            "class_pct": {k: round(100 * float(counts[CODE[k]]) / ne, 2) for k in CLS if counts[CODE[k]]},
+        }
+    blocks = [
+        {
+            "block": b + 1,
+            "start_s": float(B["start_s"][b]),
+            "end_s": float(B["end_s"][b]),
+            "screen_pass_pct": round(float(B["screen_pass_pct"][b]), 1),
+            "hum_median_uV": round(float(B["hum_med"][b]), 1) if np.isfinite(B["hum_med"][b]) else None,
+            "accelerometer_flag_epochs": int(B["motion_n"][b]),
+            "common_mode_candidate_epochs": int(B["cm_n"][b]),
+        }
+        for b in range(B["nb"])
+    ]
+    result: dict[str, Any] = {
+        "file": os.path.basename(file_path),
+        "device": rec["info"].get("device"),
+        "sampling_rate_hz": M["fs"],
+        "channels": nch,
+        "channel_labels": labels,
+        "epoch_s": epoch_s,
+        "block_s": block_s,
+        "epochs": ne,
+        "blocks_count": B["nb"],
+        "recording_duration_s": round(M["total_samples"] / M["fs"], 3),
+        "analyzed_duration_s": round(M["analyzed_samples"] / M["fs"], 3),
+        "excluded_tail_samples": int(M["excluded_tail_samples"]),
+        "screen_pass_pct": round(100 * float(R["screen_pass"].mean()), 2),
+        "unflagged_pct": round(100 * float(R["unflagged"].mean()), 2),
+        "hours_ge80pct_channels_screen_pass": round(
+            float((R["screen_pass"].sum(axis=1) >= 0.8 * nch).sum() * epoch_s / 3600), 3
+        ),
+        "class_counts": {k: int((c == CODE[k]).sum()) for k in CLS},
+        "class_pct": {k: round(100 * float((c == CODE[k]).mean()), 2) for k in CLS},
+        "class_labels": LABEL,
+        "segments": [
+            {"state": nm, "start_h": round(a * epoch_s / 3600, 3), "end_h": round(b * epoch_s / 3600, 3)}
+            for a, b, nm in S
+        ],
+        "blocks": blocks,
+        "per_channel": per_channel,
+        "channels_mostly_railed": [labels[i] for i in railed],
+        "channels_outliers": [labels[i] for i in outliers],
+        "motion_assessed": bool(R["motion_available"]),
+        "accelerometer_flag_epochs": int(R["motion_ep"].sum()),
+        "common_mode_candidate_epochs": int(R["cm_ep"].sum()),
+        "relative_unassessed_epochs": int((~R["relative_available"]).sum()),
+        "thresholds": thr,
+        "reference_rule": M["reference_rule"],
+        "analysis_config": M["analysis_config"],
+        "qc_version": M["qc_version"],
+        "metadata_warnings": rec["info"].get("metadata_warnings", []),
+        "disclaimer": DISCLAIMER,
+    }
+    if diagnostics:
+        result["diagnostics_config"] = M["diagnostics_config"]
+        result["diagnostics_per_channel"] = {
+            labels[ch]: {
+                "psd_peak_freq_hz_median": _nanmedian(M["psd_peak_freq_hz"][:, ch]),
+                "psd_peak_snr_db_median": _nanmedian(M["psd_peak_snr_db"][:, ch]),
+                "psd_peak_count_mean": _nanmean(M["psd_peak_count"][:, ch]),
+                "human_events_per_min_mean": _nanmean(M["human_events_per_min"][:, ch]),
+            }
+            for ch in range(nch)
+        }
+    return result
+
+
+def _nanmedian(values) -> float | None:
+    values = np.asarray(values, dtype=float)
+    return round(float(np.nanmedian(values)), 3) if np.isfinite(values).any() else None
+
+
+def _nanmean(values) -> float | None:
+    values = np.asarray(values, dtype=float)
+    return round(float(np.nanmean(values)), 3) if np.isfinite(values).any() else None

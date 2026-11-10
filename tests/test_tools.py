@@ -107,3 +107,45 @@ class TestReports:
 
         assert result["pdf_path"] == output
         assert os.path.isfile(output)
+
+class TestLongRecordingQc:
+    def test_long_recording_qc_screens_every_channel_epoch(self, sample_easy_path):
+        from ne_eeg_server.tools import long_recording_qc
+        from ne_eeg_server.qc.labels import CLS, DISCLAIMER
+
+        result = long_recording_qc(sample_easy_path, epoch_s=10, block_s=10)
+
+        assert result["epochs"] == 1 and result["blocks_count"] == 1
+        assert result["channels"] == len(result["channel_labels"]) == len(result["per_channel"])
+        assert sum(result["class_counts"].values()) == result["epochs"] * result["channels"]
+        assert set(result["class_counts"]) == set(CLS)
+        assert abs(sum(result["class_pct"].values()) - 100) < 1e-6
+        assert 0 <= result["screen_pass_pct"] <= 100
+        assert result["segments"][0]["start_h"] == 0 and result["segments"][-1]["end_h"] > 0
+        assert result["blocks"][0]["start_s"] == 0 and result["blocks"][0]["end_s"] == 10
+        assert result["disclaimer"] == DISCLAIMER
+        assert result["thresholds"]["hum_severe"] == 50.0
+        assert result["reference_rule"]["minimum_channels"] == 4
+        assert "diagnostics_per_channel" not in result
+
+    def test_long_recording_qc_threshold_override_and_diagnostics(self, sample_easy_path):
+        from ne_eeg_server.tools import long_recording_qc
+
+        result = long_recording_qc(sample_easy_path, epoch_s=10, block_s=10, thresholds={"hum_severe": 40}, diagnostics=True)
+
+        assert result["thresholds"]["hum_severe"] == 40
+        assert set(result["diagnostics_per_channel"]) == set(result["channel_labels"])
+        assert result["diagnostics_config"]["events"]["threshold_uv"] == 100.0
+
+    def test_long_recording_qc_rejects_bad_inputs(self, sample_easy_path, tmp_path):
+        from ne_eeg_server.tools import long_recording_qc
+
+        with pytest.raises(ValueError):
+            long_recording_qc(str(tmp_path / "missing.easy"))
+        with pytest.raises(ValueError):
+            long_recording_qc(sample_easy_path.replace(".easy", ".info"))
+        with pytest.raises(ValueError):
+            long_recording_qc(sample_easy_path, epoch_s=10, block_s=10, thresholds={"not_a_key": 1})
+        with pytest.raises(ValueError):
+            long_recording_qc(sample_easy_path, epoch_s=10, block_s=15)
+

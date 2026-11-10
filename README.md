@@ -225,7 +225,7 @@ Once connected, try these prompts with any MCP-compatible AI assistant:
 
 ## Tool Reference
 
-All six tools operate on **local EEG files on disk**. There is no cloud access, no patient database, no stimulation functionality.
+All seven tools operate on **local EEG files on disk**. There is no cloud access, no patient database, no stimulation functionality.
 
 | Tool | Description | Required | Optional |
 |------|-------------|----------|----------|
@@ -235,6 +235,7 @@ All six tools operate on **local EEG files on disk**. There is no cloud access, 
 | `analyze_eeg` | Spectral analysis: PSD, band powers, ratios, peak alpha + inline plot | `file_path` | `channels`, `start_time_s`, `duration_s` |
 | `generate_qc_report` | Generate branded PDF signal quality report | `file_path` | `output_path`, `start_time_s`, `duration_s` |
 | `generate_analysis_report` | Generate branded PDF spectral/functional analysis report | `file_path` | `output_path`, `start_time_s`, `duration_s` |
+| `long_recording_qc` | Artifact screen of a whole hours-long `.easy` recording with the shared QC core: eleven classes per channel-epoch, usable % overall, per block and per channel, segments, channels at the rail, disclaimer | `file_path` | `epoch_s`, `block_s`, `thresholds`, `diagnostics`, `cache_dir` |
 
 ### QC Metrics (signal_quality & analyze_eeg)
 
