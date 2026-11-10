@@ -1,0 +1,16 @@
+{
+  "commit": "d8861a8",
+  "sample_sha256": "1d58b85fbb1b8a838feb50ee7bdceb7a43c8371f9d21706b9f83b141125fd18e",
+  "info_sha256": "edb0dd5ffe5476d73e56389391effcd3179f54e9666b04063121192254ac8533",
+  "cases": {
+    "whole": {},
+    "window": {
+      "start_time_s": 2.0,
+      "duration_s": 4.0,
+      "channels": [
+        "Fp1",
+        "O2"
+      ]
+    }
+  }
+}

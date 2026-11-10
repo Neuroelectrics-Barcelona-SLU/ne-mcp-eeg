@@ -2,7 +2,7 @@
 
 The `ne_eeg_server.qc` package owns the numerical QC routines used by the bench
 and ambulatory pipelines. It imports no MCP, plotting, or report code. The package
-release is `ne-mcp-eeg` 0.2.0; the existing `analysis.qc` entry point forwards to
+release is `ne-mcp-eeg` 0.2.1; the existing `analysis.qc` entry point forwards to
 the bench adapter. Classification thresholds remain provisional, and passing the
 artifact screen does not establish that physiological EEG is present.
 

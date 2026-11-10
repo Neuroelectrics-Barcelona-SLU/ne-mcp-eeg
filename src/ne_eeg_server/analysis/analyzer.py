@@ -19,7 +19,7 @@ from typing import Optional, Tuple, List, Dict
 from ne_eeg_server.analysis.metrics_defaults import METRICS_DEFAULT_THRESHOLDS, DEFAULT_EVENT_THRESHOLD_UV
 from ne_eeg_server.analysis.qc import calculate_channel_metrics_from_signals
 from ne_eeg_server.analysis.plotting import plot_stacked_timeseries, plot_psd_grid
-from ne_eeg_server.readers.easy import load_easy_file
+from ne_eeg_server.readers.easy import load_easy_file, parse_info_file
 
 
 # ==============================================================================
@@ -78,9 +78,12 @@ def calculate_rms(data: np.ndarray) -> float:
 class EasyAnalyzer:
     """Main analyzer class for .easy files."""
 
-    def __init__(self, file_path: str, fs: float = 500.0):
+    def __init__(self, file_path: str, fs: Optional[float] = None):
         self.file_path = file_path
-        self.fs = fs
+        metadata_fs = parse_info_file(file_path)["sampling_rate"]
+        self.fs = float(fs if fs is not None else (metadata_fs if metadata_fs is not None else 500.0))
+        if not np.isfinite(self.fs) or self.fs <= 0:
+            raise ValueError("EEG sampling rate must be positive and finite")
         self.eeg_data = None
         self.time_sec = None
         self.total_channels = 0

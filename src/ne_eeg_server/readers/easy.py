@@ -31,10 +31,15 @@ def load_easy_file(file_path: str) -> Tuple[Optional[pd.DataFrame], Optional[np.
         df = df.apply(pd.to_numeric, errors='coerce')
         df = df.dropna()
 
-        if df.shape[1] <= 5:
-            return None, None, f"Too few columns ({df.shape[1]})"
-
-        num_eeg_chans = df.shape[1] - 5
+        declared_channels = parse_info_file(file_path)["n_channels"]
+        if declared_channels is not None:
+            if declared_channels < 1 or df.shape[1] - declared_channels not in (2, 5):
+                return None, None, "EEG channel count disagrees with .easy columns"
+            num_eeg_chans = declared_channels
+        else:
+            if df.shape[1] <= 5:
+                return None, None, f"Too few columns ({df.shape[1]}); channel count required in .info"
+            num_eeg_chans = df.shape[1] - 5
         eeg_data = df.iloc[:, 0:num_eeg_chans]
         timestamps = df.iloc[:, -1]
 
@@ -95,9 +100,12 @@ def parse_info_file(file_path: str) -> dict:
                 result["device"] = line.split(":", 1)[1].strip()
             elif "EEG sampling rate:" in line:
                 try:
-                    result["sampling_rate"] = int(line.split(":")[1].strip().split()[0])
+                    rate = float(line.split(":")[1].strip().split()[0])
+                    if not np.isfinite(rate) or rate <= 0:
+                        raise ValueError("nonpositive or nonfinite rate")
+                    result["sampling_rate"] = rate
                 except (ValueError, IndexError):
-                    pass
+                    raise ValueError("invalid EEG sampling rate in .info") from None
             elif "Number of EEG channels:" in line:
                 try:
                     result["n_channels"] = int(line.split(":")[1].strip())

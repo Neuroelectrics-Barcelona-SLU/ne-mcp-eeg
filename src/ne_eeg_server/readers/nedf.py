@@ -70,16 +70,9 @@ def read_nedf(filepath: str) -> dict:
         header_bytes = f.read(10240)
         binary_data = f.read()
 
-    content = header_bytes.decode("utf-8", errors="replace")
-    nedftitle = content[1:content.find(">")]
-    if " " in nedftitle:
-        nedftitle = nedftitle.split(" ")[0]
-    closing_tag = "</" + nedftitle + ">"
-    lastindex = content.find(closing_tag)
-    if lastindex < 0:
-        raise ValueError("Could not find closing tag in NEDF header")
-    lastindex += len(closing_tag)
-    xml_str = content[:lastindex]
+    if len(header_bytes) != 10240:
+        raise ValueError("truncated NEDF header; expected 10240 bytes")
+    xml_str = header_bytes.split(b"\0", 1)[0].decode("utf-8", errors="replace").strip()
 
     try:
         root = ET.fromstring(xml_str)
@@ -96,37 +89,60 @@ def read_nedf(filepath: str) -> dict:
 
     version = xmldict.get("NEDFversion", "1.4")
 
+    def required_int(mapping, key):
+        try:
+            return int(mapping[key])
+        except (KeyError, TypeError, ValueError):
+            raise ValueError(f"missing or invalid NEDF field: {key}") from None
+
+    if xmldict.get("AdditionalChannelStatus", "OFF") != "OFF":
+        raise ValueError("NEDF additional-channel tracks are not supported")
+
     if version == "1.4":
-        num_channels = int(xmldict["EEGSettings"]["TotalNumberOfChannels"])
-        fs = int(xmldict["EEGSettings"]["EEGSamplingRate"])
-        n_samples = int(xmldict["EEGSettings"]["NumberOfRecordsOfEEG"])
-        duration_s = float(xmldict["EEGSettings"]["EEGRecordingDuration"])
-
-        electrodes_dict = dict(xmldict["EEGSettings"]["EEGMontage"])
-        electrodes_num = {int(k[7:]): v for k, v in electrodes_dict.items()}
-        electrodes = [electrodes_num[k] for k in sorted(electrodes_num)]
-
-        device = xmldict.get("StepDetails", {}).get("DeviceClass", "Unknown")
-        start_ts = int(xmldict["StepDetails"]["StartDate_firstEEGTimestamp"])
-
-        has_acc = xmldict.get("AccelerometerData", "OFF") == "ON"
+        settings = xmldict.get("EEGSettings")
+        if not isinstance(settings, dict):
+            raise ValueError("missing NEDF EEGSettings")
+        num_channels = required_int(settings, "TotalNumberOfChannels")
+        fs = required_int(settings, "EEGSamplingRate")
+        n_samples = required_int(settings, "NumberOfRecordsOfEEG")
+        steps = xmldict.get("StepDetails") or {}
+        device = steps.get("DeviceClass", "Unknown")
+        start_ts = required_int(steps, "StartDate_firstEEGTimestamp")
+        acc_state = xmldict.get("AccelerometerData")
+        if acc_state not in (None, "ON", "OFF"):
+            raise ValueError("invalid NEDF AccelerometerData declaration")
+        acc_count = required_int(xmldict, "NumberOfChannelsOfAccelerometer") if "NumberOfChannelsOfAccelerometer" in xmldict else (3 if acc_state == "ON" else 0)
+        if acc_count not in (0, 3) or (acc_state is not None and (acc_state == "ON") != bool(acc_count)):
+            raise ValueError("inconsistent or unsupported NEDF accelerometer layout")
+        has_acc = bool(acc_count)
         has_extra_tracks = "STIMSettings" in xmldict
     elif version == "1.2":
-        num_channels = int(xmldict["TotalNumberOfChannels"])
-        fs = int(xmldict["EEGSamplingRate"])
-        n_samples = int(xmldict["NumberOfRecordsOfEEG"])
-        duration_s = n_samples / fs
-
-        electrodes_dict = dict(xmldict["EEGMontage"])
-        electrodes_num = {int(k[7:]): v for k, v in electrodes_dict.items()}
-        electrodes = [electrodes_num[k] for k in sorted(electrodes_num)]
-
+        settings = xmldict
+        num_channels = required_int(settings, "TotalNumberOfChannels")
+        fs = required_int(settings, "EEGSamplingRate")
+        n_samples = required_int(settings, "NumberOfRecordsOfEEG")
         device = "Unknown"
         start_ts = int(xmldict.get("StartDateEEG", 0))
         has_acc = False
         has_extra_tracks = False
     else:
         raise ValueError(f"Unsupported NEDF version: {version}")
+
+    if num_channels < 1 or fs <= 0 or n_samples < 1:
+        raise ValueError("NEDF channel count, sampling rate, and sample count must be positive")
+    try:
+        electrodes_num = {int(k[7:]): v for k, v in settings["EEGMontage"].items()}
+    except (KeyError, AttributeError, TypeError, ValueError):
+        raise ValueError("missing or invalid NEDF EEGMontage") from None
+    if set(electrodes_num) != set(range(1, num_channels + 1)):
+        raise ValueError("NEDF montage and channel count disagree")
+    electrodes = [electrodes_num[k] or f"CH{k}" for k in range(1, num_channels + 1)]
+    duration_s = n_samples / fs
+    expected_bytes = n_samples * (3 * num_channels * (3 if has_extra_tracks else 1) + 4)
+    if has_acc:
+        expected_bytes += ((n_samples + 4) // 5) * 6
+    if len(binary_data) != expected_bytes:
+        raise ValueError(f"NEDF payload length mismatch: expected {expected_bytes} bytes, found {len(binary_data)}")
 
     # Parse binary data
     nedf_bytes = bytearray(binary_data)
@@ -168,7 +184,7 @@ def read_nedf(filepath: str) -> dict:
                     get_byte(); get_byte(); get_byte()
 
         b1, b2, b3, b4 = get_byte(), get_byte(), get_byte(), get_byte()
-        marker = b1 * 16777216 + b2 * 65536 + b3 * 256 + b4
+        marker = int.from_bytes(bytes((b1, b2, b3, b4)), "big", signed=True)
         markers.append(marker)
 
     start_date = datetime.datetime.fromtimestamp(start_ts / 1000.0).strftime("%Y-%m-%d %H:%M:%S")

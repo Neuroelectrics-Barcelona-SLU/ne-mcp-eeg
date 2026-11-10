@@ -291,7 +291,7 @@ The server operates entirely locally. EEG files never leave the machine — all 
 
 ## Shared QC Core
 
-Version 0.2.0 provides `ne_eeg_server.qc` for use from Python without importing
+Version 0.2.1 provides `ne_eeg_server.qc` for use from Python without importing
 MCP or report code. It includes a strict, cached `.easy` reader, epoch metrics,
 the ambulatory artifact screen, interval aggregation, and shared report labels.
 The existing bench API and its numerical behavior are preserved through an adapter.

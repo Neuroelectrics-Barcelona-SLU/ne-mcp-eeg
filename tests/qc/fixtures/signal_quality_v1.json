@@ -1,0 +1,268 @@
+{
+  "whole": {
+    "file": "demo_recording.easy",
+    "device": "ENOBIO",
+    "sampling_rate_hz": 500,
+    "total_channels": 8,
+    "channel_labels": [
+      "Fp1",
+      "Fp2",
+      "F3",
+      "F4",
+      "C3",
+      "C4",
+      "O1",
+      "O2"
+    ],
+    "analysis_window": {
+      "start_s": 0.0,
+      "end_s": 10.0,
+      "duration_s": 10.0
+    },
+    "qc_summary": {
+      "channels_passed": 0,
+      "channels_total": 8,
+      "all_pass": false
+    },
+    "per_channel": {
+      "Fp1": {
+        "pass": false,
+        "rms_raw_uv": 13.88,
+        "rms_notch_uv": 13.85,
+        "rms_filtered_uv": 12.88,
+        "mean_uv": 1.5,
+        "kurtosis": 14.94,
+        "event_rate_hz": 80.02,
+        "line_power_db": -8.0,
+        "psd_peak_snr_db": 10.3,
+        "flags": {
+          "raw_rms_uv": true,
+          "notch_rms_uv": true,
+          "full_rms_uv": true,
+          "mean_uv": false,
+          "notch_kurtosis": true,
+          "notch_events_rate_hz": true,
+          "line_power_db": false,
+          "psd_peak_snr_db": false
+        }
+      },
+      "Fp2": {
+        "pass": false,
+        "rms_raw_uv": 13.47,
+        "rms_notch_uv": 13.44,
+        "rms_filtered_uv": 12.42,
+        "mean_uv": 1.6,
+        "kurtosis": 13.29,
+        "event_rate_hz": 81.22,
+        "line_power_db": -7.0,
+        "psd_peak_snr_db": 9.5,
+        "flags": {
+          "raw_rms_uv": true,
+          "notch_rms_uv": true,
+          "full_rms_uv": true,
+          "mean_uv": false,
+          "notch_kurtosis": true,
+          "notch_events_rate_hz": true,
+          "line_power_db": false,
+          "psd_peak_snr_db": false
+        }
+      },
+      "F3": {
+        "pass": false,
+        "rms_raw_uv": 7.52,
+        "rms_notch_uv": 7.46,
+        "rms_filtered_uv": 5.94,
+        "mean_uv": -0.0,
+        "kurtosis": 2.47,
+        "event_rate_hz": 114.52,
+        "line_power_db": -9.0,
+        "psd_peak_snr_db": 25.1,
+        "flags": {
+          "raw_rms_uv": true,
+          "notch_rms_uv": true,
+          "full_rms_uv": true,
+          "mean_uv": false,
+          "notch_kurtosis": false,
+          "notch_events_rate_hz": true,
+          "line_power_db": false,
+          "psd_peak_snr_db": true
+        }
+      },
+      "F4": {
+        "pass": false,
+        "rms_raw_uv": 7.57,
+        "rms_notch_uv": 7.52,
+        "rms_filtered_uv": 5.99,
+        "mean_uv": 0.0,
+        "kurtosis": 2.51,
+        "event_rate_hz": 114.52,
+        "line_power_db": -9.4,
+        "psd_peak_snr_db": 27.0,
+        "flags": {
+          "raw_rms_uv": true,
+          "notch_rms_uv": true,
+          "full_rms_uv": true,
+          "mean_uv": false,
+          "notch_kurtosis": false,
+          "notch_events_rate_hz": true,
+          "line_power_db": false,
+          "psd_peak_snr_db": true
+        }
+      },
+      "C3": {
+        "pass": false,
+        "rms_raw_uv": 8.67,
+        "rms_notch_uv": 8.62,
+        "rms_filtered_uv": 7.29,
+        "mean_uv": 0.0,
+        "kurtosis": 2.36,
+        "event_rate_hz": 101.12,
+        "line_power_db": -8.0,
+        "psd_peak_snr_db": 26.1,
+        "flags": {
+          "raw_rms_uv": true,
+          "notch_rms_uv": true,
+          "full_rms_uv": true,
+          "mean_uv": false,
+          "notch_kurtosis": false,
+          "notch_events_rate_hz": true,
+          "line_power_db": false,
+          "psd_peak_snr_db": true
+        }
+      },
+      "C4": {
+        "pass": false,
+        "rms_raw_uv": 8.66,
+        "rms_notch_uv": 8.61,
+        "rms_filtered_uv": 7.33,
+        "mean_uv": 0.1,
+        "kurtosis": 2.35,
+        "event_rate_hz": 101.02,
+        "line_power_db": -8.1,
+        "psd_peak_snr_db": 27.5,
+        "flags": {
+          "raw_rms_uv": true,
+          "notch_rms_uv": true,
+          "full_rms_uv": true,
+          "mean_uv": false,
+          "notch_kurtosis": false,
+          "notch_events_rate_hz": true,
+          "line_power_db": false,
+          "psd_peak_snr_db": true
+        }
+      },
+      "O1": {
+        "pass": false,
+        "rms_raw_uv": 15.16,
+        "rms_notch_uv": 15.13,
+        "rms_filtered_uv": 14.44,
+        "mean_uv": 0.0,
+        "kurtosis": 1.88,
+        "event_rate_hz": 46.71,
+        "line_power_db": -5.9,
+        "psd_peak_snr_db": 32.9,
+        "flags": {
+          "raw_rms_uv": true,
+          "notch_rms_uv": true,
+          "full_rms_uv": true,
+          "mean_uv": false,
+          "notch_kurtosis": false,
+          "notch_events_rate_hz": true,
+          "line_power_db": false,
+          "psd_peak_snr_db": true
+        }
+      },
+      "O2": {
+        "pass": false,
+        "rms_raw_uv": 15.05,
+        "rms_notch_uv": 15.02,
+        "rms_filtered_uv": 14.31,
+        "mean_uv": 0.0,
+        "kurtosis": 1.87,
+        "event_rate_hz": 49.21,
+        "line_power_db": -7.5,
+        "psd_peak_snr_db": 33.4,
+        "flags": {
+          "raw_rms_uv": true,
+          "notch_rms_uv": true,
+          "full_rms_uv": true,
+          "mean_uv": false,
+          "notch_kurtosis": false,
+          "notch_events_rate_hz": true,
+          "line_power_db": false,
+          "psd_peak_snr_db": true
+        }
+      }
+    }
+  },
+  "window": {
+    "file": "demo_recording.easy",
+    "device": "ENOBIO",
+    "sampling_rate_hz": 500,
+    "total_channels": 8,
+    "channel_labels": [
+      "Fp1",
+      "Fp2",
+      "F3",
+      "F4",
+      "C3",
+      "C4",
+      "O1",
+      "O2"
+    ],
+    "analysis_window": {
+      "start_s": 2.0,
+      "end_s": 6.0,
+      "duration_s": 4.0
+    },
+    "qc_summary": {
+      "channels_passed": 0,
+      "channels_total": 2,
+      "all_pass": false
+    },
+    "per_channel": {
+      "Fp1": {
+        "pass": false,
+        "rms_raw_uv": 12.82,
+        "rms_notch_uv": 12.79,
+        "rms_filtered_uv": 12.18,
+        "mean_uv": 1.3,
+        "kurtosis": 12.27,
+        "event_rate_hz": 82.5,
+        "line_power_db": -7.8,
+        "psd_peak_snr_db": 10.1,
+        "flags": {
+          "raw_rms_uv": true,
+          "notch_rms_uv": true,
+          "full_rms_uv": true,
+          "mean_uv": false,
+          "notch_kurtosis": true,
+          "notch_events_rate_hz": true,
+          "line_power_db": false,
+          "psd_peak_snr_db": false
+        }
+      },
+      "O2": {
+        "pass": false,
+        "rms_raw_uv": 15.01,
+        "rms_notch_uv": 14.98,
+        "rms_filtered_uv": 14.21,
+        "mean_uv": 0.0,
+        "kurtosis": 1.88,
+        "event_rate_hz": 47.25,
+        "line_power_db": -9.3,
+        "psd_peak_snr_db": 33.7,
+        "flags": {
+          "raw_rms_uv": true,
+          "notch_rms_uv": true,
+          "full_rms_uv": true,
+          "mean_uv": false,
+          "notch_kurtosis": false,
+          "notch_events_rate_hz": true,
+          "line_power_db": false,
+          "psd_peak_snr_db": true
+        }
+      }
+    }
+  }
+}
