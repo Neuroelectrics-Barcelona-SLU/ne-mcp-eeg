@@ -1,17 +1,27 @@
 """Compare the shared core with outputs captured before the extraction."""
 import json
 from pathlib import Path
+import platform
 import subprocess
 import sys
 
 import numpy as np
 import pytest
+import scipy
 
 from ne_eeg_server.qc import metrics, classify
 from ne_eeg_server.qc.bench import calculate_channel_metrics_from_signals
 from .synthetic import recording, bench_signals
 
 FIXTURES = Path(__file__).parent / "fixtures"
+MANIFEST = json.loads((FIXTURES / "manifest.json").read_text())
+EXACT_ENVIRONMENT = (
+    MANIFEST["python"] == platform.python_version()
+    and MANIFEST["numpy"] == np.__version__
+    and MANIFEST["scipy"] == scipy.__version__
+    and MANIFEST["platform"] == sys.platform
+    and MANIFEST["machine"] == platform.machine()
+)
 
 
 def assert_same(actual, expected):
@@ -42,6 +52,16 @@ def test_ambulatory_reference(nch):
         for key, expected in reference.items():
             if key.startswith(prefix + name + "__"):
                 actual = result[key.split("__")[-1]]
+                if EXACT_ENVIRONMENT and isinstance(expected, np.ndarray):
+                    np.testing.assert_array_equal(actual, expected)
+                # A constant nV input can leave a sub-roundoff band signal after
+                # demeaning/filtering. Its normalized moments are undefined;
+                # their finite numerical residue depends on the platform.
+                # Keep the frozen algorithm, and compare every meaningful value.
+                if name == "m" and key.split("__")[-1] in ("kurt", "corr_common"):
+                    constant = reference[prefix + "m__flat_frac"] == 1
+                    assert (m["full_rms"][constant] < 1e-9).all()
+                    actual, expected = actual[~constant], expected[~constant]
                 assert_same(actual, expected)
                 if isinstance(expected, np.ndarray) and expected.dtype.kind in "biu":
                     np.testing.assert_array_equal(actual, expected)

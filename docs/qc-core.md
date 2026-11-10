@@ -123,8 +123,13 @@ output for 1, 8, and 32 channels, plus bench outputs for normal, flat, short,
 and nonfinite-containing inputs. `tests/qc/fixtures/manifest.json` records the
 source hashes and numerical environment used to capture them. Migration tests
 require exact discrete outputs and floating agreement within `rtol=1e-10,
-atol=1e-10`, including the same NaN positions. A separate same-environment
-comparison checks bitwise equality against the original implementations.
+atol=1e-10`, including the same NaN positions. Kurtosis and correlation on exactly
+constant input channels are excluded from cross-platform comparison: they are
+undefined, and tiny filtering residue can produce platform-dependent finite
+values. The test still requires their filtered amplitude below 1e-9 µV and
+checks their class assignments. Runtime behavior is preserved. A separate
+same-environment comparison checks all arrays, including these values, bitwise
+against the original implementations.
 
 Campaign recordings and their results stay in the private consumer repository.
 That consumer's pre-migration summary counts are an additional release gate for

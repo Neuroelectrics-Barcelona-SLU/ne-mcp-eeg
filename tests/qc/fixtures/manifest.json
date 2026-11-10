@@ -8,5 +8,7 @@
     "bench.py": "0658ae309ad90ff828259a6116487984ccbdae3472083fd2bbbe4d85e312283f",
     "peaks.py": "16374d685fc01d6461570e4169b5bb1893466e95b7e32e83a163719355dd70e2",
     "synthetic.py": "13d438c02cbb0e21a38e293aec21a088825cf048603366a8627acde8eeb671f5"
-  }
+  },
+  "platform": "darwin",
+  "machine": "arm64"
 }

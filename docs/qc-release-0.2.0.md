@@ -34,6 +34,14 @@ contains algorithms and synthetic fixtures; it contains no campaign data or
 participant results. It does not validate the provisional artifact thresholds
 against physiological EEG or labeled connection states.
 
+The package constrains MCP to version 1 because the existing server uses that
+major version's handler API. Cross-platform fixture comparisons exclude
+kurtosis and correlation for exactly constant input channels: normalized
+moments of their floating-point filter residue have no signal interpretation.
+Their filtered amplitude and class assignments remain checked. This test
+qualification leaves the frozen runtime calculation unchanged; the local exact
+comparison includes every recorded value.
+
 Install the Git release with:
 
 ```bash
