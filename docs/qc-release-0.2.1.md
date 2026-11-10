@@ -31,7 +31,10 @@ value exactly, including rounded metrics, flags, labels, and summary counts;
 companion hashes pin the source `.easy` and `.info` files. The shared numerical
 core itself is unchanged from 0.2.0.
 
-Local validation passes 85 tests and 11 subtests. The CI workflow runs the same
+The release also includes the `long_recording_qc` MCP tool for uncompressed
+`.easy` files, with the shared class definitions and disclaimer.
+
+Local validation passes 88 tests and 11 subtests. The CI workflow runs the same
 suite on each push to `main` under Python 3.10, 3.11, and 3.12.
 
 Install this patch with:
